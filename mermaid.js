@@ -11024,3 +11024,1288 @@ function prim(g, weightFunc) {
       throw new Error("Input graph is not connected: " + g);
     } else {
       init = true;
+    }
+
+    g.nodeEdges(v).forEach(updateNeighbors);
+  }
+
+  return result;
+}
+
+},{"../data/priority-queue":45,"../graph":46,"../lodash":49}],43:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = tarjan;
+
+function tarjan(g) {
+  var index = 0,
+      stack = [],
+      visited = {}, // node id -> { onStack, lowlink, index }
+      results = [];
+
+  function dfs(v) {
+    var entry = visited[v] = {
+      onStack: true,
+      lowlink: index,
+      index: index++
+    };
+    stack.push(v);
+
+    g.successors(v).forEach(function(w) {
+      if (!_.has(visited, w)) {
+        dfs(w);
+        entry.lowlink = Math.min(entry.lowlink, visited[w].lowlink);
+      } else if (visited[w].onStack) {
+        entry.lowlink = Math.min(entry.lowlink, visited[w].index);
+      }
+    });
+
+    if (entry.lowlink === entry.index) {
+      var cmpt = [],
+          w;
+      do {
+        w = stack.pop();
+        visited[w].onStack = false;
+        cmpt.push(w);
+      } while (v !== w);
+      results.push(cmpt);
+    }
+  }
+
+  g.nodes().forEach(function(v) {
+    if (!_.has(visited, v)) {
+      dfs(v);
+    }
+  });
+
+  return results;
+}
+
+},{"../lodash":49}],44:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = topsort;
+topsort.CycleException = CycleException;
+
+function topsort(g) {
+  var visited = {},
+      stack = {},
+      results = [];
+
+  function visit(node) {
+    if (_.has(stack, node)) {
+      throw new CycleException();
+    }
+
+    if (!_.has(visited, node)) {
+      stack[node] = true;
+      visited[node] = true;
+      _.each(g.predecessors(node), visit);
+      delete stack[node];
+      results.push(node);
+    }
+  }
+
+  _.each(g.sinks(), visit);
+
+  if (_.size(visited) !== g.nodeCount()) {
+    throw new CycleException();
+  }
+
+  return results;
+}
+
+function CycleException() {}
+
+},{"../lodash":49}],45:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = PriorityQueue;
+
+/**
+ * A min-priority queue data structure. This algorithm is derived from Cormen,
+ * et al., "Introduction to Algorithms". The basic idea of a min-priority
+ * queue is that you can efficiently (in O(1) time) get the smallest key in
+ * the queue. Adding and removing elements takes O(log n) time. A key can
+ * have its priority decreased in O(log n) time.
+ */
+function PriorityQueue() {
+  this._arr = [];
+  this._keyIndices = {};
+}
+
+/**
+ * Returns the number of elements in the queue. Takes `O(1)` time.
+ */
+PriorityQueue.prototype.size = function() {
+  return this._arr.length;
+};
+
+/**
+ * Returns the keys that are in the queue. Takes `O(n)` time.
+ */
+PriorityQueue.prototype.keys = function() {
+  return this._arr.map(function(x) { return x.key; });
+};
+
+/**
+ * Returns `true` if **key** is in the queue and `false` if not.
+ */
+PriorityQueue.prototype.has = function(key) {
+  return _.has(this._keyIndices, key);
+};
+
+/**
+ * Returns the priority for **key**. If **key** is not present in the queue
+ * then this function returns `undefined`. Takes `O(1)` time.
+ *
+ * @param {Object} key
+ */
+PriorityQueue.prototype.priority = function(key) {
+  var index = this._keyIndices[key];
+  if (index !== undefined) {
+    return this._arr[index].priority;
+  }
+};
+
+/**
+ * Returns the key for the minimum element in this queue. If the queue is
+ * empty this function throws an Error. Takes `O(1)` time.
+ */
+PriorityQueue.prototype.min = function() {
+  if (this.size() === 0) {
+    throw new Error("Queue underflow");
+  }
+  return this._arr[0].key;
+};
+
+/**
+ * Inserts a new key into the priority queue. If the key already exists in
+ * the queue this function returns `false`; otherwise it will return `true`.
+ * Takes `O(n)` time.
+ *
+ * @param {Object} key the key to add
+ * @param {Number} priority the initial priority for the key
+ */
+PriorityQueue.prototype.add = function(key, priority) {
+  var keyIndices = this._keyIndices;
+  key = String(key);
+  if (!_.has(keyIndices, key)) {
+    var arr = this._arr;
+    var index = arr.length;
+    keyIndices[key] = index;
+    arr.push({key: key, priority: priority});
+    this._decrease(index);
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Removes and returns the smallest key in the queue. Takes `O(log n)` time.
+ */
+PriorityQueue.prototype.removeMin = function() {
+  this._swap(0, this._arr.length - 1);
+  var min = this._arr.pop();
+  delete this._keyIndices[min.key];
+  this._heapify(0);
+  return min.key;
+};
+
+/**
+ * Decreases the priority for **key** to **priority**. If the new priority is
+ * greater than the previous priority, this function will throw an Error.
+ *
+ * @param {Object} key the key for which to raise priority
+ * @param {Number} priority the new priority for the key
+ */
+PriorityQueue.prototype.decrease = function(key, priority) {
+  var index = this._keyIndices[key];
+  if (priority > this._arr[index].priority) {
+    throw new Error("New priority is greater than current priority. " +
+        "Key: " + key + " Old: " + this._arr[index].priority + " New: " + priority);
+  }
+  this._arr[index].priority = priority;
+  this._decrease(index);
+};
+
+PriorityQueue.prototype._heapify = function(i) {
+  var arr = this._arr;
+  var l = 2 * i,
+      r = l + 1,
+      largest = i;
+  if (l < arr.length) {
+    largest = arr[l].priority < arr[largest].priority ? l : largest;
+    if (r < arr.length) {
+      largest = arr[r].priority < arr[largest].priority ? r : largest;
+    }
+    if (largest !== i) {
+      this._swap(i, largest);
+      this._heapify(largest);
+    }
+  }
+};
+
+PriorityQueue.prototype._decrease = function(index) {
+  var arr = this._arr;
+  var priority = arr[index].priority;
+  var parent;
+  while (index !== 0) {
+    parent = index >> 1;
+    if (arr[parent].priority < priority) {
+      break;
+    }
+    this._swap(index, parent);
+    index = parent;
+  }
+};
+
+PriorityQueue.prototype._swap = function(i, j) {
+  var arr = this._arr;
+  var keyIndices = this._keyIndices;
+  var origArrI = arr[i];
+  var origArrJ = arr[j];
+  arr[i] = origArrJ;
+  arr[j] = origArrI;
+  keyIndices[origArrJ.key] = i;
+  keyIndices[origArrI.key] = j;
+};
+
+},{"../lodash":49}],46:[function(require,module,exports){
+"use strict";
+
+var _ = require("./lodash");
+
+module.exports = Graph;
+
+var DEFAULT_EDGE_NAME = "\x00",
+    GRAPH_NODE = "\x00",
+    EDGE_KEY_DELIM = "\x01";
+
+// Implementation notes:
+//
+//  * Node id query functions should return string ids for the nodes
+//  * Edge id query functions should return an "edgeObj", edge object, that is
+//    composed of enough information to uniquely identify an edge: {v, w, name}.
+//  * Internally we use an "edgeId", a stringified form of the edgeObj, to
+//    reference edges. This is because we need a performant way to look these
+//    edges up and, object properties, which have string keys, are the closest
+//    we're going to get to a performant hashtable in JavaScript.
+
+function Graph(opts) {
+  this._isDirected = _.has(opts, "directed") ? opts.directed : true;
+  this._isMultigraph = _.has(opts, "multigraph") ? opts.multigraph : false;
+  this._isCompound = _.has(opts, "compound") ? opts.compound : false;
+
+  // Label for the graph itself
+  this._label = undefined;
+
+  // Defaults to be set when creating a new node
+  this._defaultNodeLabelFn = _.constant(undefined);
+
+  // Defaults to be set when creating a new edge
+  this._defaultEdgeLabelFn = _.constant(undefined);
+
+  // v -> label
+  this._nodes = {};
+
+  if (this._isCompound) {
+    // v -> parent
+    this._parent = {};
+
+    // v -> children
+    this._children = {};
+    this._children[GRAPH_NODE] = {};
+  }
+
+  // v -> edgeObj
+  this._in = {};
+
+  // u -> v -> Number
+  this._preds = {};
+
+  // v -> edgeObj
+  this._out = {};
+
+  // v -> w -> Number
+  this._sucs = {};
+
+  // e -> edgeObj
+  this._edgeObjs = {};
+
+  // e -> label
+  this._edgeLabels = {};
+}
+
+/* Number of nodes in the graph. Should only be changed by the implementation. */
+Graph.prototype._nodeCount = 0;
+
+/* Number of edges in the graph. Should only be changed by the implementation. */
+Graph.prototype._edgeCount = 0;
+
+
+/* === Graph functions ========= */
+
+Graph.prototype.isDirected = function() {
+  return this._isDirected;
+};
+
+Graph.prototype.isMultigraph = function() {
+  return this._isMultigraph;
+};
+
+Graph.prototype.isCompound = function() {
+  return this._isCompound;
+};
+
+Graph.prototype.setGraph = function(label) {
+  this._label = label;
+  return this;
+};
+
+Graph.prototype.graph = function() {
+  return this._label;
+};
+
+
+/* === Node functions ========== */
+
+Graph.prototype.setDefaultNodeLabel = function(newDefault) {
+  if (!_.isFunction(newDefault)) {
+    newDefault = _.constant(newDefault);
+  }
+  this._defaultNodeLabelFn = newDefault;
+  return this;
+};
+
+Graph.prototype.nodeCount = function() {
+  return this._nodeCount;
+};
+
+Graph.prototype.nodes = function() {
+  return _.keys(this._nodes);
+};
+
+Graph.prototype.sources = function() {
+  return _.filter(this.nodes(), function(v) {
+    return _.isEmpty(this._in[v]);
+  }, this);
+};
+
+Graph.prototype.sinks = function() {
+  return _.filter(this.nodes(), function(v) {
+    return _.isEmpty(this._out[v]);
+  }, this);
+};
+
+Graph.prototype.setNodes = function(vs, value) {
+  var args = arguments;
+  _.each(vs, function(v) {
+    if (args.length > 1) {
+      this.setNode(v, value);
+    } else {
+      this.setNode(v);
+    }
+  }, this);
+  return this;
+};
+
+Graph.prototype.setNode = function(v, value) {
+  if (_.has(this._nodes, v)) {
+    if (arguments.length > 1) {
+      this._nodes[v] = value;
+    }
+    return this;
+  }
+
+  this._nodes[v] = arguments.length > 1 ? value : this._defaultNodeLabelFn(v);
+  if (this._isCompound) {
+    this._parent[v] = GRAPH_NODE;
+    this._children[v] = {};
+    this._children[GRAPH_NODE][v] = true;
+  }
+  this._in[v] = {};
+  this._preds[v] = {};
+  this._out[v] = {};
+  this._sucs[v] = {};
+  ++this._nodeCount;
+  return this;
+};
+
+Graph.prototype.node = function(v) {
+  return this._nodes[v];
+};
+
+Graph.prototype.hasNode = function(v) {
+  return _.has(this._nodes, v);
+};
+
+Graph.prototype.removeNode =  function(v) {
+  var self = this;
+  if (_.has(this._nodes, v)) {
+    var removeEdge = function(e) { self.removeEdge(self._edgeObjs[e]); };
+    delete this._nodes[v];
+    if (this._isCompound) {
+      this._removeFromParentsChildList(v);
+      delete this._parent[v];
+      _.each(this.children(v), function(child) {
+        this.setParent(child);
+      }, this);
+      delete this._children[v];
+    }
+    _.each(_.keys(this._in[v]), removeEdge);
+    delete this._in[v];
+    delete this._preds[v];
+    _.each(_.keys(this._out[v]), removeEdge);
+    delete this._out[v];
+    delete this._sucs[v];
+    --this._nodeCount;
+  }
+  return this;
+};
+
+Graph.prototype.setParent = function(v, parent) {
+  if (!this._isCompound) {
+    throw new Error("Cannot set parent in a non-compound graph");
+  }
+
+  if (_.isUndefined(parent)) {
+    parent = GRAPH_NODE;
+  } else {
+    // Coerce parent to string
+    parent += "";
+    for (var ancestor = parent;
+         !_.isUndefined(ancestor);
+         ancestor = this.parent(ancestor)) {
+      if (ancestor === v) {
+        throw new Error("Setting " + parent+ " as parent of " + v +
+                        " would create create a cycle");
+      }
+    }
+
+    this.setNode(parent);
+  }
+
+  this.setNode(v);
+  this._removeFromParentsChildList(v);
+  this._parent[v] = parent;
+  this._children[parent][v] = true;
+  return this;
+};
+
+Graph.prototype._removeFromParentsChildList = function(v) {
+  delete this._children[this._parent[v]][v];
+};
+
+Graph.prototype.parent = function(v) {
+  if (this._isCompound) {
+    var parent = this._parent[v];
+    if (parent !== GRAPH_NODE) {
+      return parent;
+    }
+  }
+};
+
+Graph.prototype.children = function(v) {
+  if (_.isUndefined(v)) {
+    v = GRAPH_NODE;
+  }
+
+  if (this._isCompound) {
+    var children = this._children[v];
+    if (children) {
+      return _.keys(children);
+    }
+  } else if (v === GRAPH_NODE) {
+    return this.nodes();
+  } else if (this.hasNode(v)) {
+    return [];
+  }
+};
+
+Graph.prototype.predecessors = function(v) {
+  var predsV = this._preds[v];
+  if (predsV) {
+    return _.keys(predsV);
+  }
+};
+
+Graph.prototype.successors = function(v) {
+  var sucsV = this._sucs[v];
+  if (sucsV) {
+    return _.keys(sucsV);
+  }
+};
+
+Graph.prototype.neighbors = function(v) {
+  var preds = this.predecessors(v);
+  if (preds) {
+    return _.union(preds, this.successors(v));
+  }
+};
+
+Graph.prototype.filterNodes = function(filter) {
+  var copy = new this.constructor({
+    directed: this._isDirected,
+    multigraph: this._isMultigraph,
+    compound: this._isCompound
+  });
+
+  copy.setGraph(this.graph());
+
+  _.each(this._nodes, function(value, v) {
+    if (filter(v)) {
+      copy.setNode(v, value);
+    }
+  }, this);
+
+  _.each(this._edgeObjs, function(e) {
+    if (copy.hasNode(e.v) && copy.hasNode(e.w)) {
+      copy.setEdge(e, this.edge(e));
+    }
+  }, this);
+
+  var self = this;
+  var parents = {};
+  function findParent(v) {
+    var parent = self.parent(v);
+    if (parent === undefined || copy.hasNode(parent)) {
+      parents[v] = parent;
+      return parent;
+    } else if (parent in parents) {
+      return parents[parent];
+    } else {
+      return findParent(parent);
+    }
+  }
+
+  if (this._isCompound) {
+    _.each(copy.nodes(), function(v) {
+      copy.setParent(v, findParent(v));
+    });
+  }
+
+  return copy;
+};
+
+/* === Edge functions ========== */
+
+Graph.prototype.setDefaultEdgeLabel = function(newDefault) {
+  if (!_.isFunction(newDefault)) {
+    newDefault = _.constant(newDefault);
+  }
+  this._defaultEdgeLabelFn = newDefault;
+  return this;
+};
+
+Graph.prototype.edgeCount = function() {
+  return this._edgeCount;
+};
+
+Graph.prototype.edges = function() {
+  return _.values(this._edgeObjs);
+};
+
+Graph.prototype.setPath = function(vs, value) {
+  var self = this,
+      args = arguments;
+  _.reduce(vs, function(v, w) {
+    if (args.length > 1) {
+      self.setEdge(v, w, value);
+    } else {
+      self.setEdge(v, w);
+    }
+    return w;
+  });
+  return this;
+};
+
+/*
+ * setEdge(v, w, [value, [name]])
+ * setEdge({ v, w, [name] }, [value])
+ */
+Graph.prototype.setEdge = function() {
+  var v, w, name, value,
+      valueSpecified = false,
+      arg0 = arguments[0];
+
+  if (typeof arg0 === "object" && arg0 !== null && "v" in arg0) {
+    v = arg0.v;
+    w = arg0.w;
+    name = arg0.name;
+    if (arguments.length === 2) {
+      value = arguments[1];
+      valueSpecified = true;
+    }
+  } else {
+    v = arg0;
+    w = arguments[1];
+    name = arguments[3];
+    if (arguments.length > 2) {
+      value = arguments[2];
+      valueSpecified = true;
+    }
+  }
+
+  v = "" + v;
+  w = "" + w;
+  if (!_.isUndefined(name)) {
+    name = "" + name;
+  }
+
+  var e = edgeArgsToId(this._isDirected, v, w, name);
+  if (_.has(this._edgeLabels, e)) {
+    if (valueSpecified) {
+      this._edgeLabels[e] = value;
+    }
+    return this;
+  }
+
+  if (!_.isUndefined(name) && !this._isMultigraph) {
+    throw new Error("Cannot set a named edge when isMultigraph = false");
+  }
+
+  // It didn't exist, so we need to create it.
+  // First ensure the nodes exist.
+  this.setNode(v);
+  this.setNode(w);
+
+  this._edgeLabels[e] = valueSpecified ? value : this._defaultEdgeLabelFn(v, w, name);
+
+  var edgeObj = edgeArgsToObj(this._isDirected, v, w, name);
+  // Ensure we add undirected edges in a consistent way.
+  v = edgeObj.v;
+  w = edgeObj.w;
+
+  Object.freeze(edgeObj);
+  this._edgeObjs[e] = edgeObj;
+  incrementOrInitEntry(this._preds[w], v);
+  incrementOrInitEntry(this._sucs[v], w);
+  this._in[w][e] = edgeObj;
+  this._out[v][e] = edgeObj;
+  this._edgeCount++;
+  return this;
+};
+
+Graph.prototype.edge = function(v, w, name) {
+  var e = (arguments.length === 1
+            ? edgeObjToId(this._isDirected, arguments[0])
+            : edgeArgsToId(this._isDirected, v, w, name));
+  return this._edgeLabels[e];
+};
+
+Graph.prototype.hasEdge = function(v, w, name) {
+  var e = (arguments.length === 1
+            ? edgeObjToId(this._isDirected, arguments[0])
+            : edgeArgsToId(this._isDirected, v, w, name));
+  return _.has(this._edgeLabels, e);
+};
+
+Graph.prototype.removeEdge = function(v, w, name) {
+  var e = (arguments.length === 1
+            ? edgeObjToId(this._isDirected, arguments[0])
+            : edgeArgsToId(this._isDirected, v, w, name)),
+      edge = this._edgeObjs[e];
+  if (edge) {
+    v = edge.v;
+    w = edge.w;
+    delete this._edgeLabels[e];
+    delete this._edgeObjs[e];
+    decrementOrRemoveEntry(this._preds[w], v);
+    decrementOrRemoveEntry(this._sucs[v], w);
+    delete this._in[w][e];
+    delete this._out[v][e];
+    this._edgeCount--;
+  }
+  return this;
+};
+
+Graph.prototype.inEdges = function(v, u) {
+  var inV = this._in[v];
+  if (inV) {
+    var edges = _.values(inV);
+    if (!u) {
+      return edges;
+    }
+    return _.filter(edges, function(edge) { return edge.v === u; });
+  }
+};
+
+Graph.prototype.outEdges = function(v, w) {
+  var outV = this._out[v];
+  if (outV) {
+    var edges = _.values(outV);
+    if (!w) {
+      return edges;
+    }
+    return _.filter(edges, function(edge) { return edge.w === w; });
+  }
+};
+
+Graph.prototype.nodeEdges = function(v, w) {
+  var inEdges = this.inEdges(v, w);
+  if (inEdges) {
+    return inEdges.concat(this.outEdges(v, w));
+  }
+};
+
+function incrementOrInitEntry(map, k) {
+  if (map[k]) {
+    map[k]++;
+  } else {
+    map[k] = 1;
+  }
+}
+
+function decrementOrRemoveEntry(map, k) {
+  if (!--map[k]) { delete map[k]; }
+}
+
+function edgeArgsToId(isDirected, v_, w_, name) {
+  var v = "" + v_;
+  var w = "" + w_;
+  if (!isDirected && v > w) {
+    var tmp = v;
+    v = w;
+    w = tmp;
+  }
+  return v + EDGE_KEY_DELIM + w + EDGE_KEY_DELIM +
+             (_.isUndefined(name) ? DEFAULT_EDGE_NAME : name);
+}
+
+function edgeArgsToObj(isDirected, v_, w_, name) {
+  var v = "" + v_;
+  var w = "" + w_;
+  if (!isDirected && v > w) {
+    var tmp = v;
+    v = w;
+    w = tmp;
+  }
+  var edgeObj =  { v: v, w: w };
+  if (name) {
+    edgeObj.name = name;
+  }
+  return edgeObj;
+}
+
+function edgeObjToId(isDirected, edgeObj) {
+  return edgeArgsToId(isDirected, edgeObj.v, edgeObj.w, edgeObj.name);
+}
+
+},{"./lodash":49}],47:[function(require,module,exports){
+// Includes only the "core" of graphlib
+module.exports = {
+  Graph: require("./graph"),
+  version: require("./version")
+};
+
+},{"./graph":46,"./version":50}],48:[function(require,module,exports){
+var _ = require("./lodash"),
+    Graph = require("./graph");
+
+module.exports = {
+  write: write,
+  read: read
+};
+
+function write(g) {
+  var json = {
+    options: {
+      directed: g.isDirected(),
+      multigraph: g.isMultigraph(),
+      compound: g.isCompound()
+    },
+    nodes: writeNodes(g),
+    edges: writeEdges(g)
+  };
+  if (!_.isUndefined(g.graph())) {
+    json.value = _.clone(g.graph());
+  }
+  return json;
+}
+
+function writeNodes(g) {
+  return _.map(g.nodes(), function(v) {
+    var nodeValue = g.node(v),
+        parent = g.parent(v),
+        node = { v: v };
+    if (!_.isUndefined(nodeValue)) {
+      node.value = nodeValue;
+    }
+    if (!_.isUndefined(parent)) {
+      node.parent = parent;
+    }
+    return node;
+  });
+}
+
+function writeEdges(g) {
+  return _.map(g.edges(), function(e) {
+    var edgeValue = g.edge(e),
+        edge = { v: e.v, w: e.w };
+    if (!_.isUndefined(e.name)) {
+      edge.name = e.name;
+    }
+    if (!_.isUndefined(edgeValue)) {
+      edge.value = edgeValue;
+    }
+    return edge;
+  });
+}
+
+function read(json) {
+  var g = new Graph(json.options).setGraph(json.value);
+  _.each(json.nodes, function(entry) {
+    g.setNode(entry.v, entry.value);
+    if (entry.parent) {
+      g.setParent(entry.v, entry.parent);
+    }
+  });
+  _.each(json.edges, function(entry) {
+    g.setEdge({ v: entry.v, w: entry.w, name: entry.name }, entry.value);
+  });
+  return g;
+}
+
+},{"./graph":46,"./lodash":49}],49:[function(require,module,exports){
+/* global window */
+
+var lodash;
+
+if (typeof require === "function") {
+  try {
+    lodash = require("lodash");
+  } catch (e) {}
+}
+
+if (!lodash) {
+  lodash = window._;
+}
+
+module.exports = lodash;
+
+},{"lodash":51}],50:[function(require,module,exports){
+module.exports = '1.0.7';
+
+},{}],51:[function(require,module,exports){
+(function (global){
+/**
+ * @license
+ * lodash 3.10.1 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern -d -o ./index.js`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+;(function() {
+
+  /** Used as a safe reference for `undefined` in pre-ES5 environments. */
+  var undefined;
+
+  /** Used as the semantic version number. */
+  var VERSION = '3.10.1';
+
+  /** Used to compose bitmasks for wrapper metadata. */
+  var BIND_FLAG = 1,
+      BIND_KEY_FLAG = 2,
+      CURRY_BOUND_FLAG = 4,
+      CURRY_FLAG = 8,
+      CURRY_RIGHT_FLAG = 16,
+      PARTIAL_FLAG = 32,
+      PARTIAL_RIGHT_FLAG = 64,
+      ARY_FLAG = 128,
+      REARG_FLAG = 256;
+
+  /** Used as default options for `_.trunc`. */
+  var DEFAULT_TRUNC_LENGTH = 30,
+      DEFAULT_TRUNC_OMISSION = '...';
+
+  /** Used to detect when a function becomes hot. */
+  var HOT_COUNT = 150,
+      HOT_SPAN = 16;
+
+  /** Used as the size to enable large array optimizations. */
+  var LARGE_ARRAY_SIZE = 200;
+
+  /** Used to indicate the type of lazy iteratees. */
+  var LAZY_FILTER_FLAG = 1,
+      LAZY_MAP_FLAG = 2;
+
+  /** Used as the `TypeError` message for "Functions" methods. */
+  var FUNC_ERROR_TEXT = 'Expected a function';
+
+  /** Used as the internal argument placeholder. */
+  var PLACEHOLDER = '__lodash_placeholder__';
+
+  /** `Object#toString` result references. */
+  var argsTag = '[object Arguments]',
+      arrayTag = '[object Array]',
+      boolTag = '[object Boolean]',
+      dateTag = '[object Date]',
+      errorTag = '[object Error]',
+      funcTag = '[object Function]',
+      mapTag = '[object Map]',
+      numberTag = '[object Number]',
+      objectTag = '[object Object]',
+      regexpTag = '[object RegExp]',
+      setTag = '[object Set]',
+      stringTag = '[object String]',
+      weakMapTag = '[object WeakMap]';
+
+  var arrayBufferTag = '[object ArrayBuffer]',
+      float32Tag = '[object Float32Array]',
+      float64Tag = '[object Float64Array]',
+      int8Tag = '[object Int8Array]',
+      int16Tag = '[object Int16Array]',
+      int32Tag = '[object Int32Array]',
+      uint8Tag = '[object Uint8Array]',
+      uint8ClampedTag = '[object Uint8ClampedArray]',
+      uint16Tag = '[object Uint16Array]',
+      uint32Tag = '[object Uint32Array]';
+
+  /** Used to match empty string literals in compiled template source. */
+  var reEmptyStringLeading = /\b__p \+= '';/g,
+      reEmptyStringMiddle = /\b(__p \+=) '' \+/g,
+      reEmptyStringTrailing = /(__e\(.*?\)|\b__t\)) \+\n'';/g;
+
+  /** Used to match HTML entities and HTML characters. */
+  var reEscapedHtml = /&(?:amp|lt|gt|quot|#39|#96);/g,
+      reUnescapedHtml = /[&<>"'`]/g,
+      reHasEscapedHtml = RegExp(reEscapedHtml.source),
+      reHasUnescapedHtml = RegExp(reUnescapedHtml.source);
+
+  /** Used to match template delimiters. */
+  var reEscape = /<%-([\s\S]+?)%>/g,
+      reEvaluate = /<%([\s\S]+?)%>/g,
+      reInterpolate = /<%=([\s\S]+?)%>/g;
+
+  /** Used to match property names within property paths. */
+  var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\n\\]|\\.)*?\1)\]/,
+      reIsPlainProp = /^\w*$/,
+      rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\n\\]|\\.)*?)\2)\]/g;
+
+  /**
+   * Used to match `RegExp` [syntax characters](http://ecma-international.org/ecma-262/6.0/#sec-patterns)
+   * and those outlined by [`EscapeRegExpPattern`](http://ecma-international.org/ecma-262/6.0/#sec-escaperegexppattern).
+   */
+  var reRegExpChars = /^[:!,]|[\\^$.*+?()[\]{}|\/]|(^[0-9a-fA-Fnrtuvx])|([\n\r\u2028\u2029])/g,
+      reHasRegExpChars = RegExp(reRegExpChars.source);
+
+  /** Used to match [combining diacritical marks](https://en.wikipedia.org/wiki/Combining_Diacritical_Marks). */
+  var reComboMark = /[\u0300-\u036f\ufe20-\ufe23]/g;
+
+  /** Used to match backslashes in property paths. */
+  var reEscapeChar = /\\(\\)?/g;
+
+  /** Used to match [ES template delimiters](http://ecma-international.org/ecma-262/6.0/#sec-template-literal-lexical-components). */
+  var reEsTemplate = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
+
+  /** Used to match `RegExp` flags from their coerced string values. */
+  var reFlags = /\w*$/;
+
+  /** Used to detect hexadecimal string values. */
+  var reHasHexPrefix = /^0[xX]/;
+
+  /** Used to detect host constructors (Safari > 5). */
+  var reIsHostCtor = /^\[object .+?Constructor\]$/;
+
+  /** Used to detect unsigned integer values. */
+  var reIsUint = /^\d+$/;
+
+  /** Used to match latin-1 supplementary letters (excluding mathematical operators). */
+  var reLatin1 = /[\xc0-\xd6\xd8-\xde\xdf-\xf6\xf8-\xff]/g;
+
+  /** Used to ensure capturing order of template delimiters. */
+  var reNoMatch = /($^)/;
+
+  /** Used to match unescaped characters in compiled string literals. */
+  var reUnescapedString = /['\n\r\u2028\u2029\\]/g;
+
+  /** Used to match words to create compound words. */
+  var reWords = (function() {
+    var upper = '[A-Z\\xc0-\\xd6\\xd8-\\xde]',
+        lower = '[a-z\\xdf-\\xf6\\xf8-\\xff]+';
+
+    return RegExp(upper + '+(?=' + upper + lower + ')|' + upper + '?' + lower + '|' + upper + '+|[0-9]+', 'g');
+  }());
+
+  /** Used to assign default `context` object properties. */
+  var contextProps = [
+    'Array', 'ArrayBuffer', 'Date', 'Error', 'Float32Array', 'Float64Array',
+    'Function', 'Int8Array', 'Int16Array', 'Int32Array', 'Math', 'Number',
+    'Object', 'RegExp', 'Set', 'String', '_', 'clearTimeout', 'isFinite',
+    'parseFloat', 'parseInt', 'setTimeout', 'TypeError', 'Uint8Array',
+    'Uint8ClampedArray', 'Uint16Array', 'Uint32Array', 'WeakMap'
+  ];
+
+  /** Used to make template sourceURLs easier to identify. */
+  var templateCounter = -1;
+
+  /** Used to identify `toStringTag` values of typed arrays. */
+  var typedArrayTags = {};
+  typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
+  typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
+  typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
+  typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
+  typedArrayTags[uint32Tag] = true;
+  typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
+  typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
+  typedArrayTags[dateTag] = typedArrayTags[errorTag] =
+  typedArrayTags[funcTag] = typedArrayTags[mapTag] =
+  typedArrayTags[numberTag] = typedArrayTags[objectTag] =
+  typedArrayTags[regexpTag] = typedArrayTags[setTag] =
+  typedArrayTags[stringTag] = typedArrayTags[weakMapTag] = false;
+
+  /** Used to identify `toStringTag` values supported by `_.clone`. */
+  var cloneableTags = {};
+  cloneableTags[argsTag] = cloneableTags[arrayTag] =
+  cloneableTags[arrayBufferTag] = cloneableTags[boolTag] =
+  cloneableTags[dateTag] = cloneableTags[float32Tag] =
+  cloneableTags[float64Tag] = cloneableTags[int8Tag] =
+  cloneableTags[int16Tag] = cloneableTags[int32Tag] =
+  cloneableTags[numberTag] = cloneableTags[objectTag] =
+  cloneableTags[regexpTag] = cloneableTags[stringTag] =
+  cloneableTags[uint8Tag] = cloneableTags[uint8ClampedTag] =
+  cloneableTags[uint16Tag] = cloneableTags[uint32Tag] = true;
+  cloneableTags[errorTag] = cloneableTags[funcTag] =
+  cloneableTags[mapTag] = cloneableTags[setTag] =
+  cloneableTags[weakMapTag] = false;
+
+  /** Used to map latin-1 supplementary letters to basic latin letters. */
+  var deburredLetters = {
+    '\xc0': 'A',  '\xc1': 'A', '\xc2': 'A', '\xc3': 'A', '\xc4': 'A', '\xc5': 'A',
+    '\xe0': 'a',  '\xe1': 'a', '\xe2': 'a', '\xe3': 'a', '\xe4': 'a', '\xe5': 'a',
+    '\xc7': 'C',  '\xe7': 'c',
+    '\xd0': 'D',  '\xf0': 'd',
+    '\xc8': 'E',  '\xc9': 'E', '\xca': 'E', '\xcb': 'E',
+    '\xe8': 'e',  '\xe9': 'e', '\xea': 'e', '\xeb': 'e',
+    '\xcC': 'I',  '\xcd': 'I', '\xce': 'I', '\xcf': 'I',
+    '\xeC': 'i',  '\xed': 'i', '\xee': 'i', '\xef': 'i',
+    '\xd1': 'N',  '\xf1': 'n',
+    '\xd2': 'O',  '\xd3': 'O', '\xd4': 'O', '\xd5': 'O', '\xd6': 'O', '\xd8': 'O',
+    '\xf2': 'o',  '\xf3': 'o', '\xf4': 'o', '\xf5': 'o', '\xf6': 'o', '\xf8': 'o',
+    '\xd9': 'U',  '\xda': 'U', '\xdb': 'U', '\xdc': 'U',
+    '\xf9': 'u',  '\xfa': 'u', '\xfb': 'u', '\xfc': 'u',
+    '\xdd': 'Y',  '\xfd': 'y', '\xff': 'y',
+    '\xc6': 'Ae', '\xe6': 'ae',
+    '\xde': 'Th', '\xfe': 'th',
+    '\xdf': 'ss'
+  };
+
+  /** Used to map characters to HTML entities. */
+  var htmlEscapes = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+    '`': '&#96;'
+  };
+
+  /** Used to map HTML entities to characters. */
+  var htmlUnescapes = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&#96;': '`'
+  };
+
+  /** Used to determine if values are of the language type `Object`. */
+  var objectTypes = {
+    'function': true,
+    'object': true
+  };
+
+  /** Used to escape characters for inclusion in compiled regexes. */
+  var regexpEscapes = {
+    '0': 'x30', '1': 'x31', '2': 'x32', '3': 'x33', '4': 'x34',
+    '5': 'x35', '6': 'x36', '7': 'x37', '8': 'x38', '9': 'x39',
+    'A': 'x41', 'B': 'x42', 'C': 'x43', 'D': 'x44', 'E': 'x45', 'F': 'x46',
+    'a': 'x61', 'b': 'x62', 'c': 'x63', 'd': 'x64', 'e': 'x65', 'f': 'x66',
+    'n': 'x6e', 'r': 'x72', 't': 'x74', 'u': 'x75', 'v': 'x76', 'x': 'x78'
+  };
+
+  /** Used to escape characters for inclusion in compiled string literals. */
+  var stringEscapes = {
+    '\\': '\\',
+    "'": "'",
+    '\n': 'n',
+    '\r': 'r',
+    '\u2028': 'u2028',
+    '\u2029': 'u2029'
+  };
+
+  /** Detect free variable `exports`. */
+  var freeExports = objectTypes[typeof exports] && exports && !exports.nodeType && exports;
+
+  /** Detect free variable `module`. */
+  var freeModule = objectTypes[typeof module] && module && !module.nodeType && module;
+
+  /** Detect free variable `global` from Node.js. */
+  var freeGlobal = freeExports && freeModule && typeof global == 'object' && global && global.Object && global;
+
+  /** Detect free variable `self`. */
+  var freeSelf = objectTypes[typeof self] && self && self.Object && self;
+
+  /** Detect free variable `window`. */
+  var freeWindow = objectTypes[typeof window] && window && window.Object && window;
+
+  /** Detect the popular CommonJS extension `module.exports`. */
+  var moduleExports = freeModule && freeModule.exports === freeExports && freeExports;
+
+  /**
+   * Used as a reference to the global object.
+   *
+   * The `this` value is used if it's the global object to avoid Greasemonkey's
+   * restricted `window` object, otherwise the `window` object is used.
+   */
+  var root = freeGlobal || ((freeWindow !== (this && this.window)) && freeWindow) || freeSelf || this;
+
+  /*--------------------------------------------------------------------------*/
+
+  /**
+   * The base implementation of `compareAscending` which compares values and
+   * sorts them in ascending order without guaranteeing a stable sort.
+   *
+   * @private
+   * @param {*} value The value to compare.
+   * @param {*} other The other value to compare.
+   * @returns {number} Returns the sort order indicator for `value`.
+   */
+  function baseCompareAscending(value, other) {
+    if (value !== other) {
+      var valIsNull = value === null,
+          valIsUndef = value === undefined,
+          valIsReflexive = value === value;
+
+      var othIsNull = other === null,
+          othIsUndef = other === undefined,
+          othIsReflexive = other === other;
+
+      if ((value > other && !othIsNull) || !valIsReflexive ||
+          (valIsNull && !othIsUndef && othIsReflexive) ||
+          (valIsUndef && othIsReflexive)) {
+        return 1;
+      }
+      if ((value < other && !valIsNull) || !othIsReflexive ||
+          (othIsNull && !valIsUndef && valIsReflexive) ||
+          (othIsUndef && valIsReflexive)) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * The base implementation of `_.findIndex` and `_.findLastIndex` without
+   * support for callback shorthands and `this` binding.
+   *
+   * @private
+   * @param {Array} array The array to search.
+   * @param {Function} predicate The function invoked per iteration.
+   * @param {boolean} [fromRight] Specify iterating from right to left.
+   * @returns {number} Returns the index of the matched value, else `-1`.
+   */
+  function baseFindIndex(array, predicate, fromRight) {
+    var length = array.length,
+        index = fromRight ? length : -1;
+
+    while ((fromRight ? index-- : ++index < length)) {
+      if (predicate(array[index], index, array)) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * The base implementation of `_.indexOf` without support for binary searches.
+   *
+   * @private
+   * @param {Array} array The array to search.
+   * @param {*} value The value to search for.
+   * @param {number} fromIndex The index to search from.
+   * @returns {number} Returns the index of the matched value, else `-1`.
+   */
+  function baseIndexOf(array, value, fromIndex) {
+    if (value !== value) {
+      return indexOfNaN(array, fromIndex);
+    }
+    var index = fromIndex - 1,
+        length = array.length;
+
+    while (++index < length) {
+      if (array[index] === value) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * The base implementation of `_.isFunction` without support for environments
+   * with incorrect `typeof` results.
+   *
+   * @private
+   * @param {*} value The value to check.
+   * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
+   */
+  function baseIsFunction(value) {
+    // Avoid a Chakra JIT bug in compatibility modes of IE 11.
+    // See https://github.com/jashkenas/underscore/issues/1621 for more details.
+    return typeof value == 'function' || false;
+  }
+
+  /**
+   * Converts `value` to a string if it's not one. An empty string is returned
+   * for `null` or `undefined` values.
+   *
+   * @private
+   * @param {*} value The value to process.
+   * @returns {string} Returns the string.
+   */
+  function baseToString(value) {
+    return value == null ? '' : (value + '');
+  }
+
+  /**
+   * Used by `_.trim` and `_.trimLeft` to get the index of the first character
+   * of `string` that is not found in `chars`.
+   *
+   * @private
+   * @param {string} string The string to inspect.
+   * @param {string} chars The characters to find.
+   * @returns {number} Returns the index of the first character not found in `chars`.
+   */
+  function charsLeftIndex(string, chars) {
+    var index = -1,
+        length = string.length;
+
+    while (++index < length && chars.indexOf(string.charAt(index)) > -1) {}
+    return index;
+  }
+
+  /**
+   * Used by `_.trim` and `_.trimRight` to get the index of the last character
+   * of `string` that is not found in `chars`.
+   *
+   * @private
+   * @param {string} string The string to inspect.
+   * @param {string} chars The characters to find.
+   * @returns {number} Returns the index of the last character not found in `chars`.
+   */
+  function charsRightIndex(string, chars) {
+    var index = string.length;
+
+    while (index-- && chars.indexOf(string.charAt(index)) > -1) {}
+    return index;
+  }
+
+  /**
+   * Used by `_.sortBy` to compare transformed elements of a collection and stable
+   * sort them in ascending order.
+   *
+   * @private
