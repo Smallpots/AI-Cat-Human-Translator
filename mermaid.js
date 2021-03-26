@@ -9749,3 +9749,1278 @@ function createEdgePaths(selection, g, arrows) {
 
 function calcPoints(g, e) {
   var edge = g.edge(e),
+      tail = g.node(e.v),
+      head = g.node(e.w),
+      points = edge.points.slice(1, edge.points.length - 1);
+  points.unshift(intersectNode(tail, points[0]));
+  points.push(intersectNode(head, points[points.length - 1]));
+
+  return createLine(edge, points);
+}
+
+function createLine(edge, points) {
+  var line = d3.svg.line()
+    .x(function(d) { return d.x; })
+    .y(function(d) { return d.y; });
+
+  if (_.has(edge, "lineInterpolate")) {
+    line.interpolate(edge.lineInterpolate);
+  }
+
+  if (_.has(edge, "lineTension")) {
+    line.tension(Number(edge.lineTension));
+  }
+
+  return line(points);
+}
+
+function getCoords(elem) {
+  var bbox = elem.getBBox(),
+      matrix = elem.getTransformToElement(elem.ownerSVGElement)
+        .translate(bbox.width / 2, bbox.height / 2);
+  return { x: matrix.e, y: matrix.f };
+}
+
+function enter(svgPaths, g) {
+  var svgPathsEnter = svgPaths.enter()
+    .append("g")
+      .attr("class", "edgePath")
+      .style("opacity", 0);
+  svgPathsEnter.append("path")
+    .attr("class", "path")
+    .attr("d", function(e) {
+      var edge = g.edge(e),
+          sourceElem = g.node(e.v).elem,
+          points = _.range(edge.points.length).map(function() { return getCoords(sourceElem); });
+      return createLine(edge, points);
+    });
+  svgPathsEnter.append("defs");
+}
+
+function exit(svgPaths, g) {
+  var svgPathExit = svgPaths.exit();
+  util.applyTransition(svgPathExit, g)
+    .style("opacity", 0)
+    .remove();
+
+  util.applyTransition(svgPathExit.select("path.path"), g)
+    .attr("d", function(e) {
+      var source = g.node(e.v);
+
+      if (source) {
+        var points = _.range(this.pathSegList.length).map(function() { return source; });
+        return createLine({}, points);
+      } else {
+        return d3.select(this).attr("d");
+      }
+    });
+}
+
+},{"./d3":9,"./intersect/intersect-node":16,"./lodash":23,"./util":29}],8:[function(require,module,exports){
+"use strict";
+
+var _ = require("./lodash"),
+    addLabel = require("./label/add-label"),
+    util = require("./util"),
+    d3 = require("./d3");
+
+module.exports = createNodes;
+
+function createNodes(selection, g, shapes) {
+  var simpleNodes = g.nodes().filter(function(v) { return !util.isSubgraph(g, v); });
+  var svgNodes = selection.selectAll("g.node")
+    .data(simpleNodes, function(v) { return v; })
+    .classed("update", true);
+
+  svgNodes.selectAll("*").remove();
+  svgNodes.enter()
+    .append("g")
+      .attr("class", "node")
+      .style("opacity", 0);
+  svgNodes.each(function(v) {
+    var node = g.node(v),
+        thisGroup = d3.select(this),
+        labelGroup = thisGroup.append("g").attr("class", "label"),
+        labelDom = addLabel(labelGroup, node),
+        shape = shapes[node.shape],
+        bbox = _.pick(labelDom.node().getBBox(), "width", "height");
+
+    node.elem = this;
+
+    if (node.id) { thisGroup.attr("id", node.id); }
+    if (node.labelId) { labelGroup.attr("id", node.labelId); }
+    util.applyClass(thisGroup, node["class"],
+      (thisGroup.classed("update") ? "update " : "") + "node");
+
+    if (_.has(node, "width")) { bbox.width = node.width; }
+    if (_.has(node, "height")) { bbox.height = node.height; }
+
+    bbox.width += node.paddingLeft + node.paddingRight;
+    bbox.height += node.paddingTop + node.paddingBottom;
+    labelGroup.attr("transform", "translate(" +
+      ((node.paddingLeft - node.paddingRight) / 2) + "," +
+      ((node.paddingTop - node.paddingBottom) / 2) + ")");
+
+    var shapeSvg = shape(d3.select(this), bbox, node);
+    util.applyStyle(shapeSvg, node.style);
+
+    var shapeBBox = shapeSvg.node().getBBox();
+    node.width = shapeBBox.width;
+    node.height = shapeBBox.height;
+  });
+
+  util.applyTransition(svgNodes.exit(), g)
+    .style("opacity", 0)
+    .remove();
+
+  return svgNodes;
+}
+
+},{"./d3":9,"./label/add-label":20,"./lodash":23,"./util":29}],9:[function(require,module,exports){
+// Stub to get D3 either via NPM or from the global object
+module.exports = window.d3;
+
+},{}],10:[function(require,module,exports){
+/* global window */
+
+var dagre;
+
+if (require) {
+  try {
+    dagre = require("dagre");
+  } catch (e) {}
+}
+
+if (!dagre) {
+  dagre = window.dagre;
+}
+
+module.exports = dagre;
+
+},{"dagre":52}],11:[function(require,module,exports){
+/* global window */
+
+var graphlib;
+
+if (require) {
+  try {
+    graphlib = require("graphlib");
+  } catch (e) {}
+}
+
+if (!graphlib) {
+  graphlib = window.graphlib;
+}
+
+module.exports = graphlib;
+
+},{"graphlib":31}],12:[function(require,module,exports){
+module.exports = {
+  node: require("./intersect-node"),
+  circle: require("./intersect-circle"),
+  ellipse: require("./intersect-ellipse"),
+  polygon: require("./intersect-polygon"),
+  rect: require("./intersect-rect")
+};
+
+},{"./intersect-circle":13,"./intersect-ellipse":14,"./intersect-node":16,"./intersect-polygon":17,"./intersect-rect":18}],13:[function(require,module,exports){
+var intersectEllipse = require("./intersect-ellipse");
+
+module.exports = intersectCircle;
+
+function intersectCircle(node, rx, point) {
+  return intersectEllipse(node, rx, rx, point);
+}
+
+},{"./intersect-ellipse":14}],14:[function(require,module,exports){
+module.exports = intersectEllipse;
+
+function intersectEllipse(node, rx, ry, point) {
+  // Formulae from: http://mathworld.wolfram.com/Ellipse-LineIntersection.html
+
+  var cx = node.x;
+  var cy = node.y;
+
+  var px = cx - point.x;
+  var py = cy - point.y;
+
+  var det = Math.sqrt(rx * rx * py * py + ry * ry * px * px);
+
+  var dx = Math.abs(rx * ry * px / det);
+  if (point.x < cx) {
+    dx = -dx;
+  }
+  var dy = Math.abs(rx * ry * py / det);
+  if (point.y < cy) {
+    dy = -dy;
+  }
+
+  return {x: cx + dx, y: cy + dy};
+}
+
+
+},{}],15:[function(require,module,exports){
+module.exports = intersectLine;
+
+/*
+ * Returns the point at which two lines, p and q, intersect or returns
+ * undefined if they do not intersect.
+ */
+function intersectLine(p1, p2, q1, q2) {
+  // Algorithm from J. Avro, (ed.) Graphics Gems, No 2, Morgan Kaufmann, 1994,
+  // p7 and p473.
+
+  var a1, a2, b1, b2, c1, c2;
+  var r1, r2 , r3, r4;
+  var denom, offset, num;
+  var x, y;
+
+  // Compute a1, b1, c1, where line joining points 1 and 2 is F(x,y) = a1 x +
+  // b1 y + c1 = 0.
+  a1 = p2.y - p1.y;
+  b1 = p1.x - p2.x;
+  c1 = (p2.x * p1.y) - (p1.x * p2.y);
+
+  // Compute r3 and r4.
+  r3 = ((a1 * q1.x) + (b1 * q1.y) + c1);
+  r4 = ((a1 * q2.x) + (b1 * q2.y) + c1);
+
+  // Check signs of r3 and r4. If both point 3 and point 4 lie on
+  // same side of line 1, the line segments do not intersect.
+  if ((r3 !== 0) && (r4 !== 0) && sameSign(r3, r4)) {
+    return /*DONT_INTERSECT*/;
+  }
+
+  // Compute a2, b2, c2 where line joining points 3 and 4 is G(x,y) = a2 x + b2 y + c2 = 0
+  a2 = q2.y - q1.y;
+  b2 = q1.x - q2.x;
+  c2 = (q2.x * q1.y) - (q1.x * q2.y);
+
+  // Compute r1 and r2
+  r1 = (a2 * p1.x) + (b2 * p1.yy) + c2;
+  r2 = (a2 * p2.x) + (b2 * p2.y) + c2;
+
+  // Check signs of r1 and r2. If both point 1 and point 2 lie
+  // on same side of second line segment, the line segments do
+  // not intersect.
+  if ((r1 !== 0) && (r2 !== 0) && (sameSign(r1, r2))) {
+    return /*DONT_INTERSECT*/;
+  }
+
+  // Line segments intersect: compute intersection point.
+  denom = (a1 * b2) - (a2 * b1);
+  if (denom === 0) {
+    return /*COLLINEAR*/;
+  }
+
+  offset = Math.abs(denom / 2);
+
+  // The denom/2 is to get rounding instead of truncating. It
+  // is added or subtracted to the numerator, depending upon the
+  // sign of the numerator.
+  num = (b1 * c2) - (b2 * c1);
+  x = (num < 0) ? ((num - offset) / denom) : ((num + offset) / denom);
+
+  num = (a2 * c1) - (a1 * c2);
+  y = (num < 0) ? ((num - offset) / denom) : ((num + offset) / denom);
+
+  return { x: x, y: y };
+}
+
+function sameSign(r1, r2) {
+  return r1 * r2 > 0;
+}
+
+},{}],16:[function(require,module,exports){
+module.exports = intersectNode;
+
+function intersectNode(node, point) {
+  return node.intersect(point);
+}
+
+},{}],17:[function(require,module,exports){
+var intersectLine = require("./intersect-line");
+
+module.exports = intersectPolygon;
+
+/*
+ * Returns the point ({x, y}) at which the point argument intersects with the
+ * node argument assuming that it has the shape specified by polygon.
+ */
+function intersectPolygon(node, polyPoints, point) {
+  var x1 = node.x;
+  var y1 = node.y;
+
+  var intersections = [];
+
+  var minX = Number.POSITIVE_INFINITY,
+      minY = Number.POSITIVE_INFINITY;
+  polyPoints.forEach(function(entry) {
+    minX = Math.min(minX, entry.x);
+    minY = Math.min(minY, entry.y);
+  });
+
+  var left = x1 - node.width / 2 - minX;
+  var top =  y1 - node.height / 2 - minY;
+
+  for (var i = 0; i < polyPoints.length; i++) {
+    var p1 = polyPoints[i];
+    var p2 = polyPoints[i < polyPoints.length - 1 ? i + 1 : 0];
+    var intersect = intersectLine(node, point,
+      {x: left + p1.x, y: top + p1.y}, {x: left + p2.x, y: top + p2.y});
+    if (intersect) {
+      intersections.push(intersect);
+    }
+  }
+
+  if (!intersections.length) {
+    console.log("NO INTERSECTION FOUND, RETURN NODE CENTER", node);
+    return node;
+  }
+
+  if (intersections.length > 1) {
+    // More intersections, find the one nearest to edge end point
+    intersections.sort(function(p, q) {
+      var pdx = p.x - point.x,
+          pdy = p.y - point.y,
+          distp = Math.sqrt(pdx * pdx + pdy * pdy),
+
+          qdx = q.x - point.x,
+          qdy = q.y - point.y,
+          distq = Math.sqrt(qdx * qdx + qdy * qdy);
+
+      return (distp < distq) ? -1 : (distp === distq ? 0 : 1);
+    });
+  }
+  return intersections[0];
+}
+
+},{"./intersect-line":15}],18:[function(require,module,exports){
+module.exports = intersectRect;
+
+function intersectRect(node, point) {
+  var x = node.x;
+  var y = node.y;
+
+  // Rectangle intersection algorithm from:
+  // http://math.stackexchange.com/questions/108113/find-edge-between-two-boxes
+  var dx = point.x - x;
+  var dy = point.y - y;
+  var w = node.width / 2;
+  var h = node.height / 2;
+
+  var sx, sy;
+  if (Math.abs(dy) * w > Math.abs(dx) * h) {
+    // Intersection is top or bottom of rect.
+    if (dy < 0) {
+      h = -h;
+    }
+    sx = dy === 0 ? 0 : h * dx / dy;
+    sy = h;
+  } else {
+    // Intersection is left or right of rect.
+    if (dx < 0) {
+      w = -w;
+    }
+    sx = w;
+    sy = dx === 0 ? 0 : w * dy / dx;
+  }
+
+  return {x: x + sx, y: y + sy};
+}
+
+},{}],19:[function(require,module,exports){
+var util = require("../util");
+
+module.exports = addHtmlLabel;
+
+function addHtmlLabel(root, node) {
+  var fo = root
+    .append("foreignObject")
+      .attr("width", "100000");
+
+  var div = fo
+    .append("xhtml:div");
+
+  var label = node.label;
+  switch(typeof label) {
+    case "function":
+      div.insert(label);
+      break;
+    case "object":
+      // Currently we assume this is a DOM object.
+      div.insert(function() { return label; });
+      break;
+    default: div.html(label);
+  }
+
+  util.applyStyle(div, node.labelStyle);
+  div.style("display", "inline-block");
+  // Fix for firefox
+  div.style("white-space", "nowrap");
+
+  // TODO find a better way to get dimensions for foreignObjects...
+  var w, h;
+  div
+    .each(function() {
+      w = this.clientWidth;
+      h = this.clientHeight;
+    });
+
+  fo
+    .attr("width", w)
+    .attr("height", h);
+
+  return fo;
+}
+
+},{"../util":29}],20:[function(require,module,exports){
+var addTextLabel = require("./add-text-label"),
+    addHtmlLabel = require("./add-html-label"),
+    addSVGLabel  = require("./add-svg-label");
+
+module.exports = addLabel;
+
+function addLabel(root, node, location) {
+  var label = node.label;
+  var labelSvg = root.append("g");
+
+  // Allow the label to be a string, a function that returns a DOM element, or
+  // a DOM element itself.
+  if (node.labelType === "svg") {
+    addSVGLabel(labelSvg, node);
+  } else if (typeof label !== "string" || node.labelType === "html") {
+    addHtmlLabel(labelSvg, node);
+  } else {
+    addTextLabel(labelSvg, node);
+  }
+
+  var labelBBox = labelSvg.node().getBBox();
+  var y;
+  switch(location) {
+    case "top":
+      y = (-node.height / 2);
+      break;
+    case "bottom":
+      y = (node.height / 2) - labelBBox.height;
+      break;
+    default:
+      y = (-labelBBox.height / 2);
+  }
+  labelSvg.attr("transform",
+                "translate(" + (-labelBBox.width / 2) + "," + y + ")");
+
+  return labelSvg;
+}
+
+},{"./add-html-label":19,"./add-svg-label":21,"./add-text-label":22}],21:[function(require,module,exports){
+var util = require("../util");
+
+module.exports = addSVGLabel;
+
+function addSVGLabel(root, node) {
+  var domNode = root;
+
+  domNode.node().appendChild(node.label);
+
+  util.applyStyle(domNode, node.labelStyle);
+
+  return domNode;
+}
+
+},{"../util":29}],22:[function(require,module,exports){
+var util = require("../util");
+
+module.exports = addTextLabel;
+
+/*
+ * Attaches a text label to the specified root. Handles escape sequences.
+ */
+function addTextLabel(root, node) {
+  var domNode = root.append("text");
+
+  var lines = processEscapeSequences(node.label).split("\n");
+  for (var i = 0; i < lines.length; i++) {
+    domNode
+      .append("tspan")
+        .attr("xml:space", "preserve")
+        .attr("dy", "1em")
+        .attr("x", "1")
+        .text(lines[i]);
+  }
+
+  util.applyStyle(domNode, node.labelStyle);
+
+  return domNode;
+}
+
+function processEscapeSequences(text) {
+  var newText = "",
+      escaped = false,
+      ch;
+  for (var i = 0; i < text.length; ++i) {
+    ch = text[i];
+    if (escaped) {
+      switch(ch) {
+        case "n": newText += "\n"; break;
+        default: newText += ch;
+      }
+      escaped = false;
+    } else if (ch === "\\") {
+      escaped = true;
+    } else {
+      newText += ch;
+    }
+  }
+  return newText;
+}
+
+},{"../util":29}],23:[function(require,module,exports){
+/* global window */
+
+var lodash;
+
+if (require) {
+  try {
+    lodash = require("lodash");
+  } catch (e) {}
+}
+
+if (!lodash) {
+  lodash = window._;
+}
+
+module.exports = lodash;
+
+},{"lodash":51}],24:[function(require,module,exports){
+"use strict";
+
+var util = require("./util"),
+    d3 = require("./d3");
+
+module.exports = positionClusters;
+
+function positionClusters(selection, g) {
+  var created = selection.filter(function() { return !d3.select(this).classed("update"); });
+
+  function translate(v) {
+    var node = g.node(v);
+    return "translate(" + node.x + "," + node.y + ")";
+  }
+
+  created.attr("transform", translate);
+
+  util.applyTransition(selection, g)
+      .style("opacity", 1)
+      .attr("transform", translate);
+
+  util.applyTransition(created.selectAll("rect"), g)
+      .attr("width", function(v) { return g.node(v).width; })
+      .attr("height", function(v) { return g.node(v).height; })
+      .attr("x", function(v) {
+        var node = g.node(v);
+        return -node.width / 2;
+      })
+      .attr("y", function(v) {
+        var node = g.node(v);
+        return -node.height / 2;
+      });
+
+}
+
+},{"./d3":9,"./util":29}],25:[function(require,module,exports){
+"use strict";
+
+var util = require("./util"),
+    d3 = require("./d3"),
+    _ = require("./lodash");
+
+module.exports = positionEdgeLabels;
+
+function positionEdgeLabels(selection, g) {
+  var created = selection.filter(function() { return !d3.select(this).classed("update"); });
+
+  function translate(e) {
+    var edge = g.edge(e);
+    return _.has(edge, "x") ? "translate(" + edge.x + "," + edge.y + ")" : "";
+  }
+
+  created.attr("transform", translate);
+
+  util.applyTransition(selection, g)
+    .style("opacity", 1)
+    .attr("transform", translate);
+}
+
+},{"./d3":9,"./lodash":23,"./util":29}],26:[function(require,module,exports){
+"use strict";
+
+var util = require("./util"),
+    d3 = require("./d3");
+
+module.exports = positionNodes;
+
+function positionNodes(selection, g) {
+  var created = selection.filter(function() { return !d3.select(this).classed("update"); });
+
+  function translate(v) {
+    var node = g.node(v);
+    return "translate(" + node.x + "," + node.y + ")";
+  }
+
+  created.attr("transform", translate);
+
+  util.applyTransition(selection, g)
+    .style("opacity", 1)
+    .attr("transform", translate);
+}
+
+},{"./d3":9,"./util":29}],27:[function(require,module,exports){
+var _ = require("./lodash"),
+    layout = require("./dagre").layout;
+
+module.exports = render;
+
+// This design is based on http://bost.ocks.org/mike/chart/.
+function render() {
+  var createNodes = require("./create-nodes"),
+      createClusters = require("./create-clusters"),
+      createEdgeLabels = require("./create-edge-labels"),
+      createEdgePaths = require("./create-edge-paths"),
+      positionNodes = require("./position-nodes"),
+      positionEdgeLabels = require("./position-edge-labels"),
+      positionClusters = require("./position-clusters"),
+      shapes = require("./shapes"),
+      arrows = require("./arrows");
+
+  var fn = function(svg, g) {
+    preProcessGraph(g);
+
+    var outputGroup = createOrSelectGroup(svg, "output"),
+        clustersGroup = createOrSelectGroup(outputGroup, "clusters"),
+        edgePathsGroup = createOrSelectGroup(outputGroup, "edgePaths"),
+        edgeLabels = createEdgeLabels(createOrSelectGroup(outputGroup, "edgeLabels"), g),
+        nodes = createNodes(createOrSelectGroup(outputGroup, "nodes"), g, shapes);
+
+    layout(g);
+
+    positionNodes(nodes, g);
+    positionEdgeLabels(edgeLabels, g);
+    createEdgePaths(edgePathsGroup, g, arrows);
+
+    var clusters = createClusters(clustersGroup, g);
+    positionClusters(clusters, g);
+
+    postProcessGraph(g);
+  };
+
+  fn.createNodes = function(value) {
+    if (!arguments.length) return createNodes;
+    createNodes = value;
+    return fn;
+  };
+
+  fn.createClusters = function(value) {
+    if (!arguments.length) return createClusters;
+    createClusters = value;
+    return fn;
+  };
+
+  fn.createEdgeLabels = function(value) {
+    if (!arguments.length) return createEdgeLabels;
+    createEdgeLabels = value;
+    return fn;
+  };
+
+  fn.createEdgePaths = function(value) {
+    if (!arguments.length) return createEdgePaths;
+    createEdgePaths = value;
+    return fn;
+  };
+
+  fn.shapes = function(value) {
+    if (!arguments.length) return shapes;
+    shapes = value;
+    return fn;
+  };
+
+  fn.arrows = function(value) {
+    if (!arguments.length) return arrows;
+    arrows = value;
+    return fn;
+  };
+
+  return fn;
+}
+
+var NODE_DEFAULT_ATTRS = {
+  paddingLeft: 10,
+  paddingRight: 10,
+  paddingTop: 10,
+  paddingBottom: 10,
+  rx: 0,
+  ry: 0,
+  shape: "rect"
+};
+
+var EDGE_DEFAULT_ATTRS = {
+  arrowhead: "normal",
+  lineInterpolate: "linear"
+};
+
+function preProcessGraph(g) {
+  g.nodes().forEach(function(v) {
+    var node = g.node(v);
+    if (!_.has(node, "label") && !g.children(v).length) { node.label = v; }
+
+    if (_.has(node, "paddingX")) {
+      _.defaults(node, {
+        paddingLeft: node.paddingX,
+        paddingRight: node.paddingX
+      });
+    }
+
+    if (_.has(node, "paddingY")) {
+      _.defaults(node, {
+        paddingTop: node.paddingY,
+        paddingBottom: node.paddingY
+      });
+    }
+
+    if (_.has(node, "padding")) {
+      _.defaults(node, {
+        paddingLeft: node.padding,
+        paddingRight: node.padding,
+        paddingTop: node.padding,
+        paddingBottom: node.padding
+      });
+    }
+
+    _.defaults(node, NODE_DEFAULT_ATTRS);
+
+    _.each(["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"], function(k) {
+      node[k] = Number(node[k]);
+    });
+
+    // Save dimensions for restore during post-processing
+    if (_.has(node, "width")) { node._prevWidth = node.width; }
+    if (_.has(node, "height")) { node._prevHeight = node.height; }
+  });
+
+  g.edges().forEach(function(e) {
+    var edge = g.edge(e);
+    if (!_.has(edge, "label")) { edge.label = ""; }
+    _.defaults(edge, EDGE_DEFAULT_ATTRS);
+  });
+}
+
+function postProcessGraph(g) {
+  _.each(g.nodes(), function(v) {
+    var node = g.node(v);
+
+    // Restore original dimensions
+    if (_.has(node, "_prevWidth")) {
+      node.width = node._prevWidth;
+    } else {
+      delete node.width;
+    }
+
+    if (_.has(node, "_prevHeight")) {
+      node.height = node._prevHeight;
+    } else {
+      delete node.height;
+    }
+
+    delete node._prevWidth;
+    delete node._prevHeight;
+  });
+}
+
+function createOrSelectGroup(root, name) {
+  var selection = root.select("g." + name);
+  if (selection.empty()) {
+    selection = root.append("g").attr("class", name);
+  }
+  return selection;
+}
+
+},{"./arrows":4,"./create-clusters":5,"./create-edge-labels":6,"./create-edge-paths":7,"./create-nodes":8,"./dagre":10,"./lodash":23,"./position-clusters":24,"./position-edge-labels":25,"./position-nodes":26,"./shapes":28}],28:[function(require,module,exports){
+"use strict";
+
+var intersectRect = require("./intersect/intersect-rect"),
+    intersectEllipse = require("./intersect/intersect-ellipse"),
+    intersectCircle = require("./intersect/intersect-circle"),
+    intersectPolygon = require("./intersect/intersect-polygon");
+
+module.exports = {
+  rect: rect,
+  ellipse: ellipse,
+  circle: circle,
+  diamond: diamond
+};
+
+function rect(parent, bbox, node) {
+  var shapeSvg = parent.insert("rect", ":first-child")
+        .attr("rx", node.rx)
+        .attr("ry", node.ry)
+        .attr("x", -bbox.width / 2)
+        .attr("y", -bbox.height / 2)
+        .attr("width", bbox.width)
+        .attr("height", bbox.height);
+
+  node.intersect = function(point) {
+    return intersectRect(node, point);
+  };
+
+  return shapeSvg;
+}
+
+function ellipse(parent, bbox, node) {
+  var rx = bbox.width / 2,
+      ry = bbox.height / 2,
+      shapeSvg = parent.insert("ellipse", ":first-child")
+        .attr("x", -bbox.width / 2)
+        .attr("y", -bbox.height / 2)
+        .attr("rx", rx)
+        .attr("ry", ry);
+
+  node.intersect = function(point) {
+    return intersectEllipse(node, rx, ry, point);
+  };
+
+  return shapeSvg;
+}
+
+function circle(parent, bbox, node) {
+  var r = Math.max(bbox.width, bbox.height) / 2,
+      shapeSvg = parent.insert("circle", ":first-child")
+        .attr("x", -bbox.width / 2)
+        .attr("y", -bbox.height / 2)
+        .attr("r", r);
+
+  node.intersect = function(point) {
+    return intersectCircle(node, r, point);
+  };
+
+  return shapeSvg;
+}
+
+// Circumscribe an ellipse for the bounding box with a diamond shape. I derived
+// the function to calculate the diamond shape from:
+// http://mathforum.org/kb/message.jspa?messageID=3750236
+function diamond(parent, bbox, node) {
+  var w = (bbox.width * Math.SQRT2) / 2,
+      h = (bbox.height * Math.SQRT2) / 2,
+      points = [
+        { x:  0, y: -h },
+        { x: -w, y:  0 },
+        { x:  0, y:  h },
+        { x:  w, y:  0 }
+      ],
+      shapeSvg = parent.insert("polygon", ":first-child")
+        .attr("points", points.map(function(p) { return p.x + "," + p.y; }).join(" "));
+
+  node.intersect = function(p) {
+    return intersectPolygon(node, points, p);
+  };
+
+  return shapeSvg;
+}
+
+},{"./intersect/intersect-circle":13,"./intersect/intersect-ellipse":14,"./intersect/intersect-polygon":17,"./intersect/intersect-rect":18}],29:[function(require,module,exports){
+var _ = require("./lodash");
+
+// Public utility functions
+module.exports = {
+  isSubgraph: isSubgraph,
+  edgeToId: edgeToId,
+  applyStyle: applyStyle,
+  applyClass: applyClass,
+  applyTransition: applyTransition
+};
+
+/*
+ * Returns true if the specified node in the graph is a subgraph node. A
+ * subgraph node is one that contains other nodes.
+ */
+function isSubgraph(g, v) {
+  return !!g.children(v).length;
+}
+
+function edgeToId(e) {
+  return escapeId(e.v) + ":" + escapeId(e.w) + ":" + escapeId(e.name);
+}
+
+var ID_DELIM = /:/g;
+function escapeId(str) {
+  return str ? String(str).replace(ID_DELIM, "\\:") : "";
+}
+
+function applyStyle(dom, styleFn) {
+  if (styleFn) {
+    dom.attr("style", styleFn);
+  }
+}
+
+function applyClass(dom, classFn, otherClasses) {
+  if (classFn) {
+    dom
+      .attr("class", classFn)
+      .attr("class", otherClasses + " " + dom.attr("class"));
+  }
+}
+
+function applyTransition(selection, g) {
+  var graph = g.graph();
+
+  if (_.isPlainObject(graph)) {
+    var transition = graph.transition;
+    if (_.isFunction(transition)) {
+      return transition(selection);
+    }
+  }
+
+  return selection;
+}
+
+},{"./lodash":23}],30:[function(require,module,exports){
+module.exports = "0.4.10";
+
+},{}],31:[function(require,module,exports){
+/**
+ * Copyright (c) 2014, Chris Pettitt
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ * list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its contributors
+ * may be used to endorse or promote products derived from this software without
+ * specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+var lib = require("./lib");
+
+module.exports = {
+  Graph: lib.Graph,
+  json: require("./lib/json"),
+  alg: require("./lib/alg"),
+  version: lib.version
+};
+
+},{"./lib":47,"./lib/alg":38,"./lib/json":48}],32:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = components;
+
+function components(g) {
+  var visited = {},
+      cmpts = [],
+      cmpt;
+
+  function dfs(v) {
+    if (_.has(visited, v)) return;
+    visited[v] = true;
+    cmpt.push(v);
+    _.each(g.successors(v), dfs);
+    _.each(g.predecessors(v), dfs);
+  }
+
+  _.each(g.nodes(), function(v) {
+    cmpt = [];
+    dfs(v);
+    if (cmpt.length) {
+      cmpts.push(cmpt);
+    }
+  });
+
+  return cmpts;
+}
+
+},{"../lodash":49}],33:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = dfs;
+
+/*
+ * A helper that preforms a pre- or post-order traversal on the input graph
+ * and returns the nodes in the order they were visited. This algorithm treats
+ * the input as undirected.
+ *
+ * Order must be one of "pre" or "post".
+ */
+function dfs(g, vs, order) {
+  if (!_.isArray(vs)) {
+    vs = [vs];
+  }
+
+  var acc = [],
+      visited = {};
+  _.each(vs, function(v) {
+    if (!g.hasNode(v)) {
+      throw new Error("Graph does not have node: " + v);
+    }
+
+    doDfs(g, v, order === "post", visited, acc);
+  });
+  return acc;
+}
+
+function doDfs(g, v, postorder, visited, acc) {
+  if (!_.has(visited, v)) {
+    visited[v] = true;
+
+    if (!postorder) { acc.push(v); }
+    _.each(g.neighbors(v), function(w) {
+      doDfs(g, w, postorder, visited, acc);
+    });
+    if (postorder) { acc.push(v); }
+  }
+}
+
+},{"../lodash":49}],34:[function(require,module,exports){
+var dijkstra = require("./dijkstra"),
+    _ = require("../lodash");
+
+module.exports = dijkstraAll;
+
+function dijkstraAll(g, weightFunc, edgeFunc) {
+  return _.transform(g.nodes(), function(acc, v) {
+    acc[v] = dijkstra(g, v, weightFunc, edgeFunc);
+  }, {});
+}
+
+},{"../lodash":49,"./dijkstra":35}],35:[function(require,module,exports){
+var _ = require("../lodash"),
+    PriorityQueue = require("../data/priority-queue");
+
+module.exports = dijkstra;
+
+var DEFAULT_WEIGHT_FUNC = _.constant(1);
+
+function dijkstra(g, source, weightFn, edgeFn) {
+  return runDijkstra(g, String(source),
+                     weightFn || DEFAULT_WEIGHT_FUNC,
+                     edgeFn || function(v) { return g.outEdges(v); });
+}
+
+function runDijkstra(g, source, weightFn, edgeFn) {
+  var results = {},
+      pq = new PriorityQueue(),
+      v, vEntry;
+
+  var updateNeighbors = function(edge) {
+    var w = edge.v !== v ? edge.v : edge.w,
+        wEntry = results[w],
+        weight = weightFn(edge),
+        distance = vEntry.distance + weight;
+
+    if (weight < 0) {
+      throw new Error("dijkstra does not allow negative edge weights. " +
+                      "Bad edge: " + edge + " Weight: " + weight);
+    }
+
+    if (distance < wEntry.distance) {
+      wEntry.distance = distance;
+      wEntry.predecessor = v;
+      pq.decrease(w, distance);
+    }
+  };
+
+  g.nodes().forEach(function(v) {
+    var distance = v === source ? 0 : Number.POSITIVE_INFINITY;
+    results[v] = { distance: distance };
+    pq.add(v, distance);
+  });
+
+  while (pq.size() > 0) {
+    v = pq.removeMin();
+    vEntry = results[v];
+    if (vEntry.distance === Number.POSITIVE_INFINITY) {
+      break;
+    }
+
+    edgeFn(v).forEach(updateNeighbors);
+  }
+
+  return results;
+}
+
+},{"../data/priority-queue":45,"../lodash":49}],36:[function(require,module,exports){
+var _ = require("../lodash"),
+    tarjan = require("./tarjan");
+
+module.exports = findCycles;
+
+function findCycles(g) {
+  return _.filter(tarjan(g), function(cmpt) {
+    return cmpt.length > 1 || (cmpt.length === 1 && g.hasEdge(cmpt[0], cmpt[0]));
+  });
+}
+
+},{"../lodash":49,"./tarjan":43}],37:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = floydWarshall;
+
+var DEFAULT_WEIGHT_FUNC = _.constant(1);
+
+function floydWarshall(g, weightFn, edgeFn) {
+  return runFloydWarshall(g,
+                          weightFn || DEFAULT_WEIGHT_FUNC,
+                          edgeFn || function(v) { return g.outEdges(v); });
+}
+
+function runFloydWarshall(g, weightFn, edgeFn) {
+  var results = {},
+      nodes = g.nodes();
+
+  nodes.forEach(function(v) {
+    results[v] = {};
+    results[v][v] = { distance: 0 };
+    nodes.forEach(function(w) {
+      if (v !== w) {
+        results[v][w] = { distance: Number.POSITIVE_INFINITY };
+      }
+    });
+    edgeFn(v).forEach(function(edge) {
+      var w = edge.v === v ? edge.w : edge.v,
+          d = weightFn(edge);
+      results[v][w] = { distance: d, predecessor: v };
+    });
+  });
+
+  nodes.forEach(function(k) {
+    var rowK = results[k];
+    nodes.forEach(function(i) {
+      var rowI = results[i];
+      nodes.forEach(function(j) {
+        var ik = rowI[k];
+        var kj = rowK[j];
+        var ij = rowI[j];
+        var altDistance = ik.distance + kj.distance;
+        if (altDistance < ij.distance) {
+          ij.distance = altDistance;
+          ij.predecessor = kj.predecessor;
+        }
+      });
+    });
+  });
+
+  return results;
+}
+
+},{"../lodash":49}],38:[function(require,module,exports){
+module.exports = {
+  components: require("./components"),
+  dijkstra: require("./dijkstra"),
+  dijkstraAll: require("./dijkstra-all"),
+  findCycles: require("./find-cycles"),
+  floydWarshall: require("./floyd-warshall"),
+  isAcyclic: require("./is-acyclic"),
+  postorder: require("./postorder"),
+  preorder: require("./preorder"),
+  prim: require("./prim"),
+  tarjan: require("./tarjan"),
+  topsort: require("./topsort")
+};
+
+},{"./components":32,"./dijkstra":35,"./dijkstra-all":34,"./find-cycles":36,"./floyd-warshall":37,"./is-acyclic":39,"./postorder":40,"./preorder":41,"./prim":42,"./tarjan":43,"./topsort":44}],39:[function(require,module,exports){
+var topsort = require("./topsort");
+
+module.exports = isAcyclic;
+
+function isAcyclic(g) {
+  try {
+    topsort(g);
+  } catch (e) {
+    if (e instanceof topsort.CycleException) {
+      return false;
+    }
+    throw e;
+  }
+  return true;
+}
+
+},{"./topsort":44}],40:[function(require,module,exports){
+var dfs = require("./dfs");
+
+module.exports = postorder;
+
+function postorder(g, vs) {
+  return dfs(g, vs, "post");
+}
+
+},{"./dfs":33}],41:[function(require,module,exports){
+var dfs = require("./dfs");
+
+module.exports = preorder;
+
+function preorder(g, vs) {
+  return dfs(g, vs, "pre");
+}
+
+},{"./dfs":33}],42:[function(require,module,exports){
+var _ = require("../lodash"),
+    Graph = require("../graph"),
+    PriorityQueue = require("../data/priority-queue");
+
+module.exports = prim;
+
+function prim(g, weightFunc) {
+  var result = new Graph(),
+      parents = {},
+      pq = new PriorityQueue(),
+      v;
+
+  function updateNeighbors(edge) {
+    var w = edge.v === v ? edge.w : edge.v,
+        pri = pq.priority(w);
+    if (pri !== undefined) {
+      var edgeWeight = weightFunc(edge);
+      if (edgeWeight < pri) {
+        parents[w] = v;
+        pq.decrease(w, edgeWeight);
+      }
+    }
+  }
+
+  if (g.nodeCount() === 0) {
+    return result;
+  }
+
+  _.each(g.nodes(), function(v) {
+    pq.add(v, Number.POSITIVE_INFINITY);
+    result.setNode(v);
+  });
+
+  // Start from an arbitrary node
+  pq.decrease(g.nodes()[0], 0);
+
+  var init = false;
+  while (pq.size() > 0) {
+    v = pq.removeMin();
+    if (_.has(parents, v)) {
+      result.setEdge(v, parents[v]);
+    } else if (init) {
+      throw new Error("Input graph is not connected: " + g);
+    } else {
+      init = true;
