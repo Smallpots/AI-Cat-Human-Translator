@@ -23685,3 +23685,1331 @@ module.exports = '1.0.7';
      *
      * var objects = [
      *   { 'n': 4 },
+     *   { 'n': 6 }
+     * ];
+     *
+     * _.sum(objects, function(object) {
+     *   return object.n;
+     * });
+     * // => 10
+     *
+     * // using the `_.property` callback shorthand
+     * _.sum(objects, 'n');
+     * // => 10
+     */
+    function sum(collection, iteratee, thisArg) {
+      if (thisArg && isIterateeCall(collection, iteratee, thisArg)) {
+        iteratee = undefined;
+      }
+      iteratee = getCallback(iteratee, thisArg, 3);
+      return iteratee.length == 1
+        ? arraySum(isArray(collection) ? collection : toIterable(collection), iteratee)
+        : baseSum(collection, iteratee);
+    }
+
+    /*------------------------------------------------------------------------*/
+
+    // Ensure wrappers are instances of `baseLodash`.
+    lodash.prototype = baseLodash.prototype;
+
+    LodashWrapper.prototype = baseCreate(baseLodash.prototype);
+    LodashWrapper.prototype.constructor = LodashWrapper;
+
+    LazyWrapper.prototype = baseCreate(baseLodash.prototype);
+    LazyWrapper.prototype.constructor = LazyWrapper;
+
+    // Add functions to the `Map` cache.
+    MapCache.prototype['delete'] = mapDelete;
+    MapCache.prototype.get = mapGet;
+    MapCache.prototype.has = mapHas;
+    MapCache.prototype.set = mapSet;
+
+    // Add functions to the `Set` cache.
+    SetCache.prototype.push = cachePush;
+
+    // Assign cache to `_.memoize`.
+    memoize.Cache = MapCache;
+
+    // Add functions that return wrapped values when chaining.
+    lodash.after = after;
+    lodash.ary = ary;
+    lodash.assign = assign;
+    lodash.at = at;
+    lodash.before = before;
+    lodash.bind = bind;
+    lodash.bindAll = bindAll;
+    lodash.bindKey = bindKey;
+    lodash.callback = callback;
+    lodash.chain = chain;
+    lodash.chunk = chunk;
+    lodash.compact = compact;
+    lodash.constant = constant;
+    lodash.countBy = countBy;
+    lodash.create = create;
+    lodash.curry = curry;
+    lodash.curryRight = curryRight;
+    lodash.debounce = debounce;
+    lodash.defaults = defaults;
+    lodash.defaultsDeep = defaultsDeep;
+    lodash.defer = defer;
+    lodash.delay = delay;
+    lodash.difference = difference;
+    lodash.drop = drop;
+    lodash.dropRight = dropRight;
+    lodash.dropRightWhile = dropRightWhile;
+    lodash.dropWhile = dropWhile;
+    lodash.fill = fill;
+    lodash.filter = filter;
+    lodash.flatten = flatten;
+    lodash.flattenDeep = flattenDeep;
+    lodash.flow = flow;
+    lodash.flowRight = flowRight;
+    lodash.forEach = forEach;
+    lodash.forEachRight = forEachRight;
+    lodash.forIn = forIn;
+    lodash.forInRight = forInRight;
+    lodash.forOwn = forOwn;
+    lodash.forOwnRight = forOwnRight;
+    lodash.functions = functions;
+    lodash.groupBy = groupBy;
+    lodash.indexBy = indexBy;
+    lodash.initial = initial;
+    lodash.intersection = intersection;
+    lodash.invert = invert;
+    lodash.invoke = invoke;
+    lodash.keys = keys;
+    lodash.keysIn = keysIn;
+    lodash.map = map;
+    lodash.mapKeys = mapKeys;
+    lodash.mapValues = mapValues;
+    lodash.matches = matches;
+    lodash.matchesProperty = matchesProperty;
+    lodash.memoize = memoize;
+    lodash.merge = merge;
+    lodash.method = method;
+    lodash.methodOf = methodOf;
+    lodash.mixin = mixin;
+    lodash.modArgs = modArgs;
+    lodash.negate = negate;
+    lodash.omit = omit;
+    lodash.once = once;
+    lodash.pairs = pairs;
+    lodash.partial = partial;
+    lodash.partialRight = partialRight;
+    lodash.partition = partition;
+    lodash.pick = pick;
+    lodash.pluck = pluck;
+    lodash.property = property;
+    lodash.propertyOf = propertyOf;
+    lodash.pull = pull;
+    lodash.pullAt = pullAt;
+    lodash.range = range;
+    lodash.rearg = rearg;
+    lodash.reject = reject;
+    lodash.remove = remove;
+    lodash.rest = rest;
+    lodash.restParam = restParam;
+    lodash.set = set;
+    lodash.shuffle = shuffle;
+    lodash.slice = slice;
+    lodash.sortBy = sortBy;
+    lodash.sortByAll = sortByAll;
+    lodash.sortByOrder = sortByOrder;
+    lodash.spread = spread;
+    lodash.take = take;
+    lodash.takeRight = takeRight;
+    lodash.takeRightWhile = takeRightWhile;
+    lodash.takeWhile = takeWhile;
+    lodash.tap = tap;
+    lodash.throttle = throttle;
+    lodash.thru = thru;
+    lodash.times = times;
+    lodash.toArray = toArray;
+    lodash.toPlainObject = toPlainObject;
+    lodash.transform = transform;
+    lodash.union = union;
+    lodash.uniq = uniq;
+    lodash.unzip = unzip;
+    lodash.unzipWith = unzipWith;
+    lodash.values = values;
+    lodash.valuesIn = valuesIn;
+    lodash.where = where;
+    lodash.without = without;
+    lodash.wrap = wrap;
+    lodash.xor = xor;
+    lodash.zip = zip;
+    lodash.zipObject = zipObject;
+    lodash.zipWith = zipWith;
+
+    // Add aliases.
+    lodash.backflow = flowRight;
+    lodash.collect = map;
+    lodash.compose = flowRight;
+    lodash.each = forEach;
+    lodash.eachRight = forEachRight;
+    lodash.extend = assign;
+    lodash.iteratee = callback;
+    lodash.methods = functions;
+    lodash.object = zipObject;
+    lodash.select = filter;
+    lodash.tail = rest;
+    lodash.unique = uniq;
+
+    // Add functions to `lodash.prototype`.
+    mixin(lodash, lodash);
+
+    /*------------------------------------------------------------------------*/
+
+    // Add functions that return unwrapped values when chaining.
+    lodash.add = add;
+    lodash.attempt = attempt;
+    lodash.camelCase = camelCase;
+    lodash.capitalize = capitalize;
+    lodash.ceil = ceil;
+    lodash.clone = clone;
+    lodash.cloneDeep = cloneDeep;
+    lodash.deburr = deburr;
+    lodash.endsWith = endsWith;
+    lodash.escape = escape;
+    lodash.escapeRegExp = escapeRegExp;
+    lodash.every = every;
+    lodash.find = find;
+    lodash.findIndex = findIndex;
+    lodash.findKey = findKey;
+    lodash.findLast = findLast;
+    lodash.findLastIndex = findLastIndex;
+    lodash.findLastKey = findLastKey;
+    lodash.findWhere = findWhere;
+    lodash.first = first;
+    lodash.floor = floor;
+    lodash.get = get;
+    lodash.gt = gt;
+    lodash.gte = gte;
+    lodash.has = has;
+    lodash.identity = identity;
+    lodash.includes = includes;
+    lodash.indexOf = indexOf;
+    lodash.inRange = inRange;
+    lodash.isArguments = isArguments;
+    lodash.isArray = isArray;
+    lodash.isBoolean = isBoolean;
+    lodash.isDate = isDate;
+    lodash.isElement = isElement;
+    lodash.isEmpty = isEmpty;
+    lodash.isEqual = isEqual;
+    lodash.isError = isError;
+    lodash.isFinite = isFinite;
+    lodash.isFunction = isFunction;
+    lodash.isMatch = isMatch;
+    lodash.isNaN = isNaN;
+    lodash.isNative = isNative;
+    lodash.isNull = isNull;
+    lodash.isNumber = isNumber;
+    lodash.isObject = isObject;
+    lodash.isPlainObject = isPlainObject;
+    lodash.isRegExp = isRegExp;
+    lodash.isString = isString;
+    lodash.isTypedArray = isTypedArray;
+    lodash.isUndefined = isUndefined;
+    lodash.kebabCase = kebabCase;
+    lodash.last = last;
+    lodash.lastIndexOf = lastIndexOf;
+    lodash.lt = lt;
+    lodash.lte = lte;
+    lodash.max = max;
+    lodash.min = min;
+    lodash.noConflict = noConflict;
+    lodash.noop = noop;
+    lodash.now = now;
+    lodash.pad = pad;
+    lodash.padLeft = padLeft;
+    lodash.padRight = padRight;
+    lodash.parseInt = parseInt;
+    lodash.random = random;
+    lodash.reduce = reduce;
+    lodash.reduceRight = reduceRight;
+    lodash.repeat = repeat;
+    lodash.result = result;
+    lodash.round = round;
+    lodash.runInContext = runInContext;
+    lodash.size = size;
+    lodash.snakeCase = snakeCase;
+    lodash.some = some;
+    lodash.sortedIndex = sortedIndex;
+    lodash.sortedLastIndex = sortedLastIndex;
+    lodash.startCase = startCase;
+    lodash.startsWith = startsWith;
+    lodash.sum = sum;
+    lodash.template = template;
+    lodash.trim = trim;
+    lodash.trimLeft = trimLeft;
+    lodash.trimRight = trimRight;
+    lodash.trunc = trunc;
+    lodash.unescape = unescape;
+    lodash.uniqueId = uniqueId;
+    lodash.words = words;
+
+    // Add aliases.
+    lodash.all = every;
+    lodash.any = some;
+    lodash.contains = includes;
+    lodash.eq = isEqual;
+    lodash.detect = find;
+    lodash.foldl = reduce;
+    lodash.foldr = reduceRight;
+    lodash.head = first;
+    lodash.include = includes;
+    lodash.inject = reduce;
+
+    mixin(lodash, (function() {
+      var source = {};
+      baseForOwn(lodash, function(func, methodName) {
+        if (!lodash.prototype[methodName]) {
+          source[methodName] = func;
+        }
+      });
+      return source;
+    }()), false);
+
+    /*------------------------------------------------------------------------*/
+
+    // Add functions capable of returning wrapped and unwrapped values when chaining.
+    lodash.sample = sample;
+
+    lodash.prototype.sample = function(n) {
+      if (!this.__chain__ && n == null) {
+        return sample(this.value());
+      }
+      return this.thru(function(value) {
+        return sample(value, n);
+      });
+    };
+
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * The semantic version number.
+     *
+     * @static
+     * @memberOf _
+     * @type string
+     */
+    lodash.VERSION = VERSION;
+
+    // Assign default placeholders.
+    arrayEach(['bind', 'bindKey', 'curry', 'curryRight', 'partial', 'partialRight'], function(methodName) {
+      lodash[methodName].placeholder = lodash;
+    });
+
+    // Add `LazyWrapper` methods for `_.drop` and `_.take` variants.
+    arrayEach(['drop', 'take'], function(methodName, index) {
+      LazyWrapper.prototype[methodName] = function(n) {
+        var filtered = this.__filtered__;
+        if (filtered && !index) {
+          return new LazyWrapper(this);
+        }
+        n = n == null ? 1 : nativeMax(nativeFloor(n) || 0, 0);
+
+        var result = this.clone();
+        if (filtered) {
+          result.__takeCount__ = nativeMin(result.__takeCount__, n);
+        } else {
+          result.__views__.push({ 'size': n, 'type': methodName + (result.__dir__ < 0 ? 'Right' : '') });
+        }
+        return result;
+      };
+
+      LazyWrapper.prototype[methodName + 'Right'] = function(n) {
+        return this.reverse()[methodName](n).reverse();
+      };
+    });
+
+    // Add `LazyWrapper` methods that accept an `iteratee` value.
+    arrayEach(['filter', 'map', 'takeWhile'], function(methodName, index) {
+      var type = index + 1,
+          isFilter = type != LAZY_MAP_FLAG;
+
+      LazyWrapper.prototype[methodName] = function(iteratee, thisArg) {
+        var result = this.clone();
+        result.__iteratees__.push({ 'iteratee': getCallback(iteratee, thisArg, 1), 'type': type });
+        result.__filtered__ = result.__filtered__ || isFilter;
+        return result;
+      };
+    });
+
+    // Add `LazyWrapper` methods for `_.first` and `_.last`.
+    arrayEach(['first', 'last'], function(methodName, index) {
+      var takeName = 'take' + (index ? 'Right' : '');
+
+      LazyWrapper.prototype[methodName] = function() {
+        return this[takeName](1).value()[0];
+      };
+    });
+
+    // Add `LazyWrapper` methods for `_.initial` and `_.rest`.
+    arrayEach(['initial', 'rest'], function(methodName, index) {
+      var dropName = 'drop' + (index ? '' : 'Right');
+
+      LazyWrapper.prototype[methodName] = function() {
+        return this.__filtered__ ? new LazyWrapper(this) : this[dropName](1);
+      };
+    });
+
+    // Add `LazyWrapper` methods for `_.pluck` and `_.where`.
+    arrayEach(['pluck', 'where'], function(methodName, index) {
+      var operationName = index ? 'filter' : 'map',
+          createCallback = index ? baseMatches : property;
+
+      LazyWrapper.prototype[methodName] = function(value) {
+        return this[operationName](createCallback(value));
+      };
+    });
+
+    LazyWrapper.prototype.compact = function() {
+      return this.filter(identity);
+    };
+
+    LazyWrapper.prototype.reject = function(predicate, thisArg) {
+      predicate = getCallback(predicate, thisArg, 1);
+      return this.filter(function(value) {
+        return !predicate(value);
+      });
+    };
+
+    LazyWrapper.prototype.slice = function(start, end) {
+      start = start == null ? 0 : (+start || 0);
+
+      var result = this;
+      if (result.__filtered__ && (start > 0 || end < 0)) {
+        return new LazyWrapper(result);
+      }
+      if (start < 0) {
+        result = result.takeRight(-start);
+      } else if (start) {
+        result = result.drop(start);
+      }
+      if (end !== undefined) {
+        end = (+end || 0);
+        result = end < 0 ? result.dropRight(-end) : result.take(end - start);
+      }
+      return result;
+    };
+
+    LazyWrapper.prototype.takeRightWhile = function(predicate, thisArg) {
+      return this.reverse().takeWhile(predicate, thisArg).reverse();
+    };
+
+    LazyWrapper.prototype.toArray = function() {
+      return this.take(POSITIVE_INFINITY);
+    };
+
+    // Add `LazyWrapper` methods to `lodash.prototype`.
+    baseForOwn(LazyWrapper.prototype, function(func, methodName) {
+      var checkIteratee = /^(?:filter|map|reject)|While$/.test(methodName),
+          retUnwrapped = /^(?:first|last)$/.test(methodName),
+          lodashFunc = lodash[retUnwrapped ? ('take' + (methodName == 'last' ? 'Right' : '')) : methodName];
+
+      if (!lodashFunc) {
+        return;
+      }
+      lodash.prototype[methodName] = function() {
+        var args = retUnwrapped ? [1] : arguments,
+            chainAll = this.__chain__,
+            value = this.__wrapped__,
+            isHybrid = !!this.__actions__.length,
+            isLazy = value instanceof LazyWrapper,
+            iteratee = args[0],
+            useLazy = isLazy || isArray(value);
+
+        if (useLazy && checkIteratee && typeof iteratee == 'function' && iteratee.length != 1) {
+          // Avoid lazy use if the iteratee has a "length" value other than `1`.
+          isLazy = useLazy = false;
+        }
+        var interceptor = function(value) {
+          return (retUnwrapped && chainAll)
+            ? lodashFunc(value, 1)[0]
+            : lodashFunc.apply(undefined, arrayPush([value], args));
+        };
+
+        var action = { 'func': thru, 'args': [interceptor], 'thisArg': undefined },
+            onlyLazy = isLazy && !isHybrid;
+
+        if (retUnwrapped && !chainAll) {
+          if (onlyLazy) {
+            value = value.clone();
+            value.__actions__.push(action);
+            return func.call(value);
+          }
+          return lodashFunc.call(undefined, this.value())[0];
+        }
+        if (!retUnwrapped && useLazy) {
+          value = onlyLazy ? value : new LazyWrapper(this);
+          var result = func.apply(value, args);
+          result.__actions__.push(action);
+          return new LodashWrapper(result, chainAll);
+        }
+        return this.thru(interceptor);
+      };
+    });
+
+    // Add `Array` and `String` methods to `lodash.prototype`.
+    arrayEach(['join', 'pop', 'push', 'replace', 'shift', 'sort', 'splice', 'split', 'unshift'], function(methodName) {
+      var func = (/^(?:replace|split)$/.test(methodName) ? stringProto : arrayProto)[methodName],
+          chainName = /^(?:push|sort|unshift)$/.test(methodName) ? 'tap' : 'thru',
+          retUnwrapped = /^(?:join|pop|replace|shift)$/.test(methodName);
+
+      lodash.prototype[methodName] = function() {
+        var args = arguments;
+        if (retUnwrapped && !this.__chain__) {
+          return func.apply(this.value(), args);
+        }
+        return this[chainName](function(value) {
+          return func.apply(value, args);
+        });
+      };
+    });
+
+    // Map minified function names to their real names.
+    baseForOwn(LazyWrapper.prototype, function(func, methodName) {
+      var lodashFunc = lodash[methodName];
+      if (lodashFunc) {
+        var key = lodashFunc.name,
+            names = realNames[key] || (realNames[key] = []);
+
+        names.push({ 'name': methodName, 'func': lodashFunc });
+      }
+    });
+
+    realNames[createHybridWrapper(undefined, BIND_KEY_FLAG).name] = [{ 'name': 'wrapper', 'func': undefined }];
+
+    // Add functions to the lazy wrapper.
+    LazyWrapper.prototype.clone = lazyClone;
+    LazyWrapper.prototype.reverse = lazyReverse;
+    LazyWrapper.prototype.value = lazyValue;
+
+    // Add chaining functions to the `lodash` wrapper.
+    lodash.prototype.chain = wrapperChain;
+    lodash.prototype.commit = wrapperCommit;
+    lodash.prototype.concat = wrapperConcat;
+    lodash.prototype.plant = wrapperPlant;
+    lodash.prototype.reverse = wrapperReverse;
+    lodash.prototype.toString = wrapperToString;
+    lodash.prototype.run = lodash.prototype.toJSON = lodash.prototype.valueOf = lodash.prototype.value = wrapperValue;
+
+    // Add function aliases to the `lodash` wrapper.
+    lodash.prototype.collect = lodash.prototype.map;
+    lodash.prototype.head = lodash.prototype.first;
+    lodash.prototype.select = lodash.prototype.filter;
+    lodash.prototype.tail = lodash.prototype.rest;
+
+    return lodash;
+  }
+
+  /*--------------------------------------------------------------------------*/
+
+  // Export lodash.
+  var _ = runInContext();
+
+  // Some AMD build optimizers like r.js check for condition patterns like the following:
+  if (typeof define == 'function' && typeof define.amd == 'object' && define.amd) {
+    // Expose lodash to the global object when an AMD loader is present to avoid
+    // errors in cases where lodash is loaded by a script tag and not intended
+    // as an AMD module. See http://requirejs.org/docs/errors.html#mismatch for
+    // more details.
+    root._ = _;
+
+    // Define as an anonymous module so, through path mapping, it can be
+    // referenced as the "underscore" module.
+    define(function() {
+      return _;
+    });
+  }
+  // Check for `exports` after `define` in case a build optimizer adds an `exports` object.
+  else if (freeExports && freeModule) {
+    // Export for Node.js or RingoJS.
+    if (moduleExports) {
+      (freeModule.exports = _)._ = _;
+    }
+    // Export for Rhino with CommonJS support.
+    else {
+      freeExports._ = _;
+    }
+  }
+  else {
+    // Export for a browser or Rhino.
+    root._ = _;
+  }
+}.call(this));
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],52:[function(require,module,exports){
+/*
+Copyright (c) 2012-2014 Chris Pettitt
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+
+module.exports = {
+  graphlib: require("./lib/graphlib"),
+
+  layout: require("./lib/layout"),
+  debug: require("./lib/debug"),
+  util: {
+    time: require("./lib/util").time,
+    notime: require("./lib/util").notime
+  },
+  version: require("./lib/version")
+};
+
+},{"./lib/debug":57,"./lib/graphlib":58,"./lib/layout":60,"./lib/util":80,"./lib/version":81}],53:[function(require,module,exports){
+"use strict";
+
+var _ = require("./lodash"),
+    greedyFAS = require("./greedy-fas");
+
+module.exports = {
+  run: run,
+  undo: undo
+};
+
+function run(g) {
+  var fas = (g.graph().acyclicer === "greedy"
+                ? greedyFAS(g, weightFn(g))
+                : dfsFAS(g));
+  _.each(fas, function(e) {
+    var label = g.edge(e);
+    g.removeEdge(e);
+    label.forwardName = e.name;
+    label.reversed = true;
+    g.setEdge(e.w, e.v, label, _.uniqueId("rev"));
+  });
+
+  function weightFn(g) {
+    return function(e) {
+      return g.edge(e).weight;
+    };
+  }
+}
+
+function dfsFAS(g) {
+  var fas = [],
+      stack = {},
+      visited = {};
+
+  function dfs(v) {
+    if (_.has(visited, v)) {
+      return;
+    }
+    visited[v] = true;
+    stack[v] = true;
+    _.each(g.outEdges(v), function(e) {
+      if (_.has(stack, e.w)) {
+        fas.push(e);
+      } else {
+        dfs(e.w);
+      }
+    });
+    delete stack[v];
+  }
+
+  _.each(g.nodes(), dfs);
+  return fas;
+}
+
+function undo(g) {
+  _.each(g.edges(), function(e) {
+    var label = g.edge(e);
+    if (label.reversed) {
+      g.removeEdge(e);
+
+      var forwardName = label.forwardName;
+      delete label.reversed;
+      delete label.forwardName;
+      g.setEdge(e.w, e.v, label, forwardName);
+    }
+  });
+}
+
+},{"./greedy-fas":59,"./lodash":61}],54:[function(require,module,exports){
+var _ = require("./lodash"),
+    util = require("./util");
+
+module.exports = addBorderSegments;
+
+function addBorderSegments(g) {
+  function dfs(v) {
+    var children = g.children(v),
+        node = g.node(v);
+    if (children.length) {
+      _.each(children, dfs);
+    }
+
+    if (_.has(node, "minRank")) {
+      node.borderLeft = [];
+      node.borderRight = [];
+      for (var rank = node.minRank, maxRank = node.maxRank + 1;
+           rank < maxRank;
+           ++rank) {
+        addBorderNode(g, "borderLeft", "_bl", v, node, rank);
+        addBorderNode(g, "borderRight", "_br", v, node, rank);
+      }
+    }
+  }
+
+  _.each(g.children(), dfs);
+}
+
+function addBorderNode(g, prop, prefix, sg, sgNode, rank) {
+  var label = { width: 0, height: 0, rank: rank, borderType: prop },
+      prev = sgNode[prop][rank - 1],
+      curr = util.addDummyNode(g, "border", label, prefix);
+  sgNode[prop][rank] = curr;
+  g.setParent(curr, sg);
+  if (prev) {
+    g.setEdge(prev, curr, { weight: 1 });
+  }
+}
+
+},{"./lodash":61,"./util":80}],55:[function(require,module,exports){
+"use strict";
+
+var _ = require("./lodash");
+
+module.exports = {
+  adjust: adjust,
+  undo: undo
+};
+
+function adjust(g) {
+  var rankDir = g.graph().rankdir.toLowerCase();
+  if (rankDir === "lr" || rankDir === "rl") {
+    swapWidthHeight(g);
+  }
+}
+
+function undo(g) {
+  var rankDir = g.graph().rankdir.toLowerCase();
+  if (rankDir === "bt" || rankDir === "rl") {
+    reverseY(g);
+  }
+
+  if (rankDir === "lr" || rankDir === "rl") {
+    swapXY(g);
+    swapWidthHeight(g);
+  }
+}
+
+function swapWidthHeight(g) {
+  _.each(g.nodes(), function(v) { swapWidthHeightOne(g.node(v)); });
+  _.each(g.edges(), function(e) { swapWidthHeightOne(g.edge(e)); });
+}
+
+function swapWidthHeightOne(attrs) {
+  var w = attrs.width;
+  attrs.width = attrs.height;
+  attrs.height = w;
+}
+
+function reverseY(g) {
+  _.each(g.nodes(), function(v) { reverseYOne(g.node(v)); });
+
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    _.each(edge.points, reverseYOne);
+    if (_.has(edge, "y")) {
+      reverseYOne(edge);
+    }
+  });
+}
+
+function reverseYOne(attrs) {
+  attrs.y = -attrs.y;
+}
+
+function swapXY(g) {
+  _.each(g.nodes(), function(v) { swapXYOne(g.node(v)); });
+
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    _.each(edge.points, swapXYOne);
+    if (_.has(edge, "x")) {
+      swapXYOne(edge);
+    }
+  });
+}
+
+function swapXYOne(attrs) {
+  var x = attrs.x;
+  attrs.x = attrs.y;
+  attrs.y = x;
+}
+
+},{"./lodash":61}],56:[function(require,module,exports){
+/*
+ * Simple doubly linked list implementation derived from Cormen, et al.,
+ * "Introduction to Algorithms".
+ */
+
+module.exports = List;
+
+function List() {
+  var sentinel = {};
+  sentinel._next = sentinel._prev = sentinel;
+  this._sentinel = sentinel;
+}
+
+List.prototype.dequeue = function() {
+  var sentinel = this._sentinel,
+      entry = sentinel._prev;
+  if (entry !== sentinel) {
+    unlink(entry);
+    return entry;
+  }
+};
+
+List.prototype.enqueue = function(entry) {
+  var sentinel = this._sentinel;
+  if (entry._prev && entry._next) {
+    unlink(entry);
+  }
+  entry._next = sentinel._next;
+  sentinel._next._prev = entry;
+  sentinel._next = entry;
+  entry._prev = sentinel;
+};
+
+List.prototype.toString = function() {
+  var strs = [],
+      sentinel = this._sentinel,
+      curr = sentinel._prev;
+  while (curr !== sentinel) {
+    strs.push(JSON.stringify(curr, filterOutLinks));
+    curr = curr._prev;
+  }
+  return "[" + strs.join(", ") + "]";
+};
+
+function unlink(entry) {
+  entry._prev._next = entry._next;
+  entry._next._prev = entry._prev;
+  delete entry._next;
+  delete entry._prev;
+}
+
+function filterOutLinks(k, v) {
+  if (k !== "_next" && k !== "_prev") {
+    return v;
+  }
+}
+
+},{}],57:[function(require,module,exports){
+var _ = require("./lodash"),
+    util = require("./util"),
+    Graph = require("./graphlib").Graph;
+
+module.exports = {
+  debugOrdering: debugOrdering
+};
+
+/* istanbul ignore next */
+function debugOrdering(g) {
+  var layerMatrix = util.buildLayerMatrix(g);
+
+  var h = new Graph({ compound: true, multigraph: true }).setGraph({});
+
+  _.each(g.nodes(), function(v) {
+    h.setNode(v, { label: v });
+    h.setParent(v, "layer" + g.node(v).rank);
+  });
+
+  _.each(g.edges(), function(e) {
+    h.setEdge(e.v, e.w, {}, e.name);
+  });
+
+  _.each(layerMatrix, function(layer, i) {
+    var layerV = "layer" + i;
+    h.setNode(layerV, { rank: "same" });
+    _.reduce(layer, function(u, v) {
+      h.setEdge(u, v, { style: "invis" });
+      return v;
+    });
+  });
+
+  return h;
+}
+
+},{"./graphlib":58,"./lodash":61,"./util":80}],58:[function(require,module,exports){
+/* global window */
+
+var graphlib;
+
+if (typeof require === "function") {
+  try {
+    graphlib = require("graphlib");
+  } catch (e) {}
+}
+
+if (!graphlib) {
+  graphlib = window.graphlib;
+}
+
+module.exports = graphlib;
+
+},{"graphlib":82}],59:[function(require,module,exports){
+var _ = require("./lodash"),
+    Graph = require("./graphlib").Graph,
+    List = require("./data/list");
+
+/*
+ * A greedy heuristic for finding a feedback arc set for a graph. A feedback
+ * arc set is a set of edges that can be removed to make a graph acyclic.
+ * The algorithm comes from: P. Eades, X. Lin, and W. F. Smyth, "A fast and
+ * effective heuristic for the feedback arc set problem." This implementation
+ * adjusts that from the paper to allow for weighted edges.
+ */
+module.exports = greedyFAS;
+
+var DEFAULT_WEIGHT_FN = _.constant(1);
+
+function greedyFAS(g, weightFn) {
+  if (g.nodeCount() <= 1) {
+    return [];
+  }
+  var state = buildState(g, weightFn || DEFAULT_WEIGHT_FN);
+  var results = doGreedyFAS(state.graph, state.buckets, state.zeroIdx);
+
+  // Expand multi-edges
+  return _.flatten(_.map(results, function(e) {
+    return g.outEdges(e.v, e.w);
+  }), true);
+}
+
+function doGreedyFAS(g, buckets, zeroIdx) {
+  var results = [],
+      sources = buckets[buckets.length - 1],
+      sinks = buckets[0];
+
+  var entry;
+  while (g.nodeCount()) {
+    while ((entry = sinks.dequeue()))   { removeNode(g, buckets, zeroIdx, entry); }
+    while ((entry = sources.dequeue())) { removeNode(g, buckets, zeroIdx, entry); }
+    if (g.nodeCount()) {
+      for (var i = buckets.length - 2; i > 0; --i) {
+        entry = buckets[i].dequeue();
+        if (entry) {
+          results = results.concat(removeNode(g, buckets, zeroIdx, entry, true));
+          break;
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+function removeNode(g, buckets, zeroIdx, entry, collectPredecessors) {
+  var results = collectPredecessors ? [] : undefined;
+
+  _.each(g.inEdges(entry.v), function(edge) {
+    var weight = g.edge(edge),
+        uEntry = g.node(edge.v);
+
+    if (collectPredecessors) {
+      results.push({ v: edge.v, w: edge.w });
+    }
+
+    uEntry.out -= weight;
+    assignBucket(buckets, zeroIdx, uEntry);
+  });
+
+  _.each(g.outEdges(entry.v), function(edge) {
+    var weight = g.edge(edge),
+        w = edge.w,
+        wEntry = g.node(w);
+    wEntry["in"] -= weight;
+    assignBucket(buckets, zeroIdx, wEntry);
+  });
+
+  g.removeNode(entry.v);
+
+  return results;
+}
+
+function buildState(g, weightFn) {
+  var fasGraph = new Graph(),
+      maxIn = 0,
+      maxOut = 0;
+
+  _.each(g.nodes(), function(v) {
+    fasGraph.setNode(v, { v: v, "in": 0, out: 0 });
+  });
+
+  // Aggregate weights on nodes, but also sum the weights across multi-edges
+  // into a single edge for the fasGraph.
+  _.each(g.edges(), function(e) {
+    var prevWeight = fasGraph.edge(e.v, e.w) || 0,
+        weight = weightFn(e),
+        edgeWeight = prevWeight + weight;
+    fasGraph.setEdge(e.v, e.w, edgeWeight);
+    maxOut = Math.max(maxOut, fasGraph.node(e.v).out += weight);
+    maxIn  = Math.max(maxIn,  fasGraph.node(e.w)["in"]  += weight);
+  });
+
+  var buckets = _.range(maxOut + maxIn + 3).map(function() { return new List(); });
+  var zeroIdx = maxIn + 1;
+
+  _.each(fasGraph.nodes(), function(v) {
+    assignBucket(buckets, zeroIdx, fasGraph.node(v));
+  });
+
+  return { graph: fasGraph, buckets: buckets, zeroIdx: zeroIdx };
+}
+
+function assignBucket(buckets, zeroIdx, entry) {
+  if (!entry.out) {
+    buckets[0].enqueue(entry);
+  } else if (!entry["in"]) {
+    buckets[buckets.length - 1].enqueue(entry);
+  } else {
+    buckets[entry.out - entry["in"] + zeroIdx].enqueue(entry);
+  }
+}
+
+},{"./data/list":56,"./graphlib":58,"./lodash":61}],60:[function(require,module,exports){
+"use strict";
+
+var _ = require("./lodash"),
+    acyclic = require("./acyclic"),
+    normalize = require("./normalize"),
+    rank = require("./rank"),
+    normalizeRanks = require("./util").normalizeRanks,
+    parentDummyChains = require("./parent-dummy-chains"),
+    removeEmptyRanks = require("./util").removeEmptyRanks,
+    nestingGraph = require("./nesting-graph"),
+    addBorderSegments = require("./add-border-segments"),
+    coordinateSystem = require("./coordinate-system"),
+    order = require("./order"),
+    position = require("./position"),
+    util = require("./util"),
+    Graph = require("./graphlib").Graph;
+
+module.exports = layout;
+
+function layout(g, opts) {
+  var time = opts && opts.debugTiming ? util.time : util.notime;
+  time("layout", function() {
+    var layoutGraph = time("  buildLayoutGraph",
+                               function() { return buildLayoutGraph(g); });
+    time("  runLayout",        function() { runLayout(layoutGraph, time); });
+    time("  updateInputGraph", function() { updateInputGraph(g, layoutGraph); });
+  });
+}
+
+function runLayout(g, time) {
+  time("    makeSpaceForEdgeLabels", function() { makeSpaceForEdgeLabels(g); });
+  time("    removeSelfEdges",        function() { removeSelfEdges(g); });
+  time("    acyclic",                function() { acyclic.run(g); });
+  time("    nestingGraph.run",       function() { nestingGraph.run(g); });
+  time("    rank",                   function() { rank(util.asNonCompoundGraph(g)); });
+  time("    injectEdgeLabelProxies", function() { injectEdgeLabelProxies(g); });
+  time("    removeEmptyRanks",       function() { removeEmptyRanks(g); });
+  time("    nestingGraph.cleanup",   function() { nestingGraph.cleanup(g); });
+  time("    normalizeRanks",         function() { normalizeRanks(g); });
+  time("    assignRankMinMax",       function() { assignRankMinMax(g); });
+  time("    removeEdgeLabelProxies", function() { removeEdgeLabelProxies(g); });
+  time("    normalize.run",          function() { normalize.run(g); });
+  time("    parentDummyChains",      function() { parentDummyChains(g); });
+  time("    addBorderSegments",      function() { addBorderSegments(g); });
+  time("    order",                  function() { order(g); });
+  time("    insertSelfEdges",        function() { insertSelfEdges(g); });
+  time("    adjustCoordinateSystem", function() { coordinateSystem.adjust(g); });
+  time("    position",               function() { position(g); });
+  time("    positionSelfEdges",      function() { positionSelfEdges(g); });
+  time("    removeBorderNodes",      function() { removeBorderNodes(g); });
+  time("    normalize.undo",         function() { normalize.undo(g); });
+  time("    fixupEdgeLabelCoords",   function() { fixupEdgeLabelCoords(g); });
+  time("    undoCoordinateSystem",   function() { coordinateSystem.undo(g); });
+  time("    translateGraph",         function() { translateGraph(g); });
+  time("    assignNodeIntersects",   function() { assignNodeIntersects(g); });
+  time("    reversePoints",          function() { reversePointsForReversedEdges(g); });
+  time("    acyclic.undo",           function() { acyclic.undo(g); });
+}
+
+/*
+ * Copies final layout information from the layout graph back to the input
+ * graph. This process only copies whitelisted attributes from the layout graph
+ * to the input graph, so it serves as a good place to determine what
+ * attributes can influence layout.
+ */
+function updateInputGraph(inputGraph, layoutGraph) {
+  _.each(inputGraph.nodes(), function(v) {
+    var inputLabel = inputGraph.node(v),
+        layoutLabel = layoutGraph.node(v);
+
+    if (inputLabel) {
+      inputLabel.x = layoutLabel.x;
+      inputLabel.y = layoutLabel.y;
+
+      if (layoutGraph.children(v).length) {
+        inputLabel.width = layoutLabel.width;
+        inputLabel.height = layoutLabel.height;
+      }
+    }
+  });
+
+  _.each(inputGraph.edges(), function(e) {
+    var inputLabel = inputGraph.edge(e),
+        layoutLabel = layoutGraph.edge(e);
+
+    inputLabel.points = layoutLabel.points;
+    if (_.has(layoutLabel, "x")) {
+      inputLabel.x = layoutLabel.x;
+      inputLabel.y = layoutLabel.y;
+    }
+  });
+
+  inputGraph.graph().width = layoutGraph.graph().width;
+  inputGraph.graph().height = layoutGraph.graph().height;
+}
+
+var graphNumAttrs = ["nodesep", "edgesep", "ranksep", "marginx", "marginy"],
+    graphDefaults = { ranksep: 50, edgesep: 20, nodesep: 50, rankdir: "tb" },
+    graphAttrs = ["acyclicer", "ranker", "rankdir", "align"],
+    nodeNumAttrs = ["width", "height"],
+    nodeDefaults = { width: 0, height: 0 },
+    edgeNumAttrs = ["minlen", "weight", "width", "height", "labeloffset"],
+    edgeDefaults = {
+      minlen: 1, weight: 1, width: 0, height: 0,
+      labeloffset: 10, labelpos: "r"
+    },
+    edgeAttrs = ["labelpos"];
+
+/*
+ * Constructs a new graph from the input graph, which can be used for layout.
+ * This process copies only whitelisted attributes from the input graph to the
+ * layout graph. Thus this function serves as a good place to determine what
+ * attributes can influence layout.
+ */
+function buildLayoutGraph(inputGraph) {
+  var g = new Graph({ multigraph: true, compound: true }),
+      graph = canonicalize(inputGraph.graph());
+
+  g.setGraph(_.merge({},
+    graphDefaults,
+    selectNumberAttrs(graph, graphNumAttrs),
+    _.pick(graph, graphAttrs)));
+
+  _.each(inputGraph.nodes(), function(v) {
+    var node = canonicalize(inputGraph.node(v));
+    g.setNode(v, _.defaults(selectNumberAttrs(node, nodeNumAttrs), nodeDefaults));
+    g.setParent(v, inputGraph.parent(v));
+  });
+
+  _.each(inputGraph.edges(), function(e) {
+    var edge = canonicalize(inputGraph.edge(e));
+    g.setEdge(e, _.merge({},
+      edgeDefaults,
+      selectNumberAttrs(edge, edgeNumAttrs),
+      _.pick(edge, edgeAttrs)));
+  });
+
+  return g;
+}
+
+/*
+ * This idea comes from the Gansner paper: to account for edge labels in our
+ * layout we split each rank in half by doubling minlen and halving ranksep.
+ * Then we can place labels at these mid-points between nodes.
+ *
+ * We also add some minimal padding to the width to push the label for the edge
+ * away from the edge itself a bit.
+ */
+function makeSpaceForEdgeLabels(g) {
+  var graph = g.graph();
+  graph.ranksep /= 2;
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    edge.minlen *= 2;
+    if (edge.labelpos.toLowerCase() !== "c") {
+      if (graph.rankdir === "TB" || graph.rankdir === "BT") {
+        edge.width += edge.labeloffset;
+      } else {
+        edge.height += edge.labeloffset;
+      }
+    }
+  });
+}
+
+/*
+ * Creates temporary dummy nodes that capture the rank in which each edge's
+ * label is going to, if it has one of non-zero width and height. We do this
+ * so that we can safely remove empty ranks while preserving balance for the
+ * label's position.
+ */
+function injectEdgeLabelProxies(g) {
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    if (edge.width && edge.height) {
+      var v = g.node(e.v),
+          w = g.node(e.w),
+          label = { rank: (w.rank - v.rank) / 2 + v.rank, e: e };
+      util.addDummyNode(g, "edge-proxy", label, "_ep");
+    }
+  });
+}
+
+function assignRankMinMax(g) {
+  var maxRank = 0;
+  _.each(g.nodes(), function(v) {
+    var node = g.node(v);
+    if (node.borderTop) {
+      node.minRank = g.node(node.borderTop).rank;
+      node.maxRank = g.node(node.borderBottom).rank;
+      maxRank = _.max(maxRank, node.maxRank);
+    }
+  });
+  g.graph().maxRank = maxRank;
+}
+
+function removeEdgeLabelProxies(g) {
+  _.each(g.nodes(), function(v) {
+    var node = g.node(v);
+    if (node.dummy === "edge-proxy") {
+      g.edge(node.e).labelRank = node.rank;
+      g.removeNode(v);
+    }
+  });
+}
+
+function translateGraph(g) {
+  var minX = Number.POSITIVE_INFINITY,
+      maxX = 0,
+      minY = Number.POSITIVE_INFINITY,
+      maxY = 0,
+      graphLabel = g.graph(),
+      marginX = graphLabel.marginx || 0,
+      marginY = graphLabel.marginy || 0;
+
+  function getExtremes(attrs) {
+    var x = attrs.x,
+        y = attrs.y,
+        w = attrs.width,
+        h = attrs.height;
+    minX = Math.min(minX, x - w / 2);
+    maxX = Math.max(maxX, x + w / 2);
+    minY = Math.min(minY, y - h / 2);
+    maxY = Math.max(maxY, y + h / 2);
+  }
+
+  _.each(g.nodes(), function(v) { getExtremes(g.node(v)); });
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    if (_.has(edge, "x")) {
+      getExtremes(edge);
+    }
+  });
+
+  minX -= marginX;
+  minY -= marginY;
+
+  _.each(g.nodes(), function(v) {
+    var node = g.node(v);
+    node.x -= minX;
+    node.y -= minY;
+  });
+
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    _.each(edge.points, function(p) {
+      p.x -= minX;
+      p.y -= minY;
+    });
+    if (_.has(edge, "x")) { edge.x -= minX; }
+    if (_.has(edge, "y")) { edge.y -= minY; }
+  });
+
+  graphLabel.width = maxX - minX + marginX;
+  graphLabel.height = maxY - minY + marginY;
+}
+
+function assignNodeIntersects(g) {
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e),
+        nodeV = g.node(e.v),
+        nodeW = g.node(e.w),
+        p1, p2;
+    if (!edge.points) {
+      edge.points = [];
+      p1 = nodeW;
+      p2 = nodeV;
+    } else {
+      p1 = edge.points[0];
+      p2 = edge.points[edge.points.length - 1];
+    }
+    edge.points.unshift(util.intersectRect(nodeV, p1));
+    edge.points.push(util.intersectRect(nodeW, p2));
+  });
+}
+
+function fixupEdgeLabelCoords(g) {
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    if (_.has(edge, "x")) {
+      if (edge.labelpos === "l" || edge.labelpos === "r") {
+        edge.width -= edge.labeloffset;
+      }
+      switch (edge.labelpos) {
+        case "l": edge.x -= edge.width / 2 + edge.labeloffset; break;
+        case "r": edge.x += edge.width / 2 + edge.labeloffset; break;
+      }
+    }
+  });
+}
+
+function reversePointsForReversedEdges(g) {
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    if (edge.reversed) {
+      edge.points.reverse();
+    }
+  });
+}
+
+function removeBorderNodes(g) {
+  _.each(g.nodes(), function(v) {
+    if (g.children(v).length) {
+      var node = g.node(v),
+          t = g.node(node.borderTop),
+          b = g.node(node.borderBottom),
+          l = g.node(_.last(node.borderLeft)),
+          r = g.node(_.last(node.borderRight));
+
+      node.width = Math.abs(r.x - l.x);
+      node.height = Math.abs(b.y - t.y);
+      node.x = l.x + node.width / 2;
+      node.y = t.y + node.height / 2;
+    }
+  });
+
+  _.each(g.nodes(), function(v) {
+    if (g.node(v).dummy === "border") {
+      g.removeNode(v);
+    }
+  });
+}
