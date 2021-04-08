@@ -25013,3 +25013,1274 @@ function removeBorderNodes(g) {
     }
   });
 }
+
+function removeSelfEdges(g) {
+  _.each(g.edges(), function(e) {
+    if (e.v === e.w) {
+      var node = g.node(e.v);
+      if (!node.selfEdges) {
+        node.selfEdges = [];
+      }
+      node.selfEdges.push({ e: e, label: g.edge(e) });
+      g.removeEdge(e);
+    }
+  });
+}
+
+function insertSelfEdges(g) {
+  var layers = util.buildLayerMatrix(g);
+  _.each(layers, function(layer) {
+    var orderShift = 0;
+    _.each(layer, function(v, i) {
+      var node = g.node(v);
+      node.order = i + orderShift;
+      _.each(node.selfEdges, function(selfEdge) {
+        util.addDummyNode(g, "selfedge", {
+          width: selfEdge.label.width,
+          height: selfEdge.label.height,
+          rank: node.rank,
+          order: i + (++orderShift),
+          e: selfEdge.e,
+          label: selfEdge.label
+        }, "_se");
+      });
+      delete node.selfEdges;
+    });
+  });
+}
+
+function positionSelfEdges(g) {
+  _.each(g.nodes(), function(v) {
+    var node = g.node(v);
+    if (node.dummy === "selfedge") {
+      var selfNode = g.node(node.e.v),
+          x = selfNode.x + selfNode.width / 2,
+          y = selfNode.y,
+          dx = node.x - x,
+          dy = selfNode.height / 2;
+      g.setEdge(node.e, node.label);
+      g.removeNode(v);
+      node.label.points = [
+        { x: x + 2 * dx / 3, y: y - dy },
+        { x: x + 5 * dx / 6, y: y - dy },
+        { x: x +     dx    , y: y },
+        { x: x + 5 * dx / 6, y: y + dy },
+        { x: x + 2 * dx / 3, y: y + dy },
+      ];
+      node.label.x = node.x;
+      node.label.y = node.y;
+    }
+  });
+}
+
+function selectNumberAttrs(obj, attrs) {
+  return _.mapValues(_.pick(obj, attrs), Number);
+}
+
+function canonicalize(attrs) {
+  var newAttrs = {};
+  _.each(attrs, function(v, k) {
+    newAttrs[k.toLowerCase()] = v;
+  });
+  return newAttrs;
+}
+
+},{"./acyclic":53,"./add-border-segments":54,"./coordinate-system":55,"./graphlib":58,"./lodash":61,"./nesting-graph":62,"./normalize":63,"./order":68,"./parent-dummy-chains":73,"./position":75,"./rank":77,"./util":80}],61:[function(require,module,exports){
+module.exports=require(49)
+},{"/Users/knut/source/mermaid/node_modules/dagre-d3/node_modules/graphlib/lib/lodash.js":49,"lodash":102}],62:[function(require,module,exports){
+var _ = require("./lodash"),
+    util = require("./util");
+
+module.exports = {
+  run: run,
+  cleanup: cleanup
+};
+
+/*
+ * A nesting graph creates dummy nodes for the tops and bottoms of subgraphs,
+ * adds appropriate edges to ensure that all cluster nodes are placed between
+ * these boundries, and ensures that the graph is connected.
+ *
+ * In addition we ensure, through the use of the minlen property, that nodes
+ * and subgraph border nodes to not end up on the same rank.
+ *
+ * Preconditions:
+ *
+ *    1. Input graph is a DAG
+ *    2. Nodes in the input graph has a minlen attribute
+ *
+ * Postconditions:
+ *
+ *    1. Input graph is connected.
+ *    2. Dummy nodes are added for the tops and bottoms of subgraphs.
+ *    3. The minlen attribute for nodes is adjusted to ensure nodes do not
+ *       get placed on the same rank as subgraph border nodes.
+ *
+ * The nesting graph idea comes from Sander, "Layout of Compound Directed
+ * Graphs."
+ */
+function run(g) {
+  var root = util.addDummyNode(g, "root", {}, "_root"),
+      depths = treeDepths(g),
+      height = _.max(depths) - 1,
+      nodeSep = 2 * height + 1;
+
+  g.graph().nestingRoot = root;
+
+  // Multiply minlen by nodeSep to align nodes on non-border ranks.
+  _.each(g.edges(), function(e) { g.edge(e).minlen *= nodeSep; });
+
+  // Calculate a weight that is sufficient to keep subgraphs vertically compact
+  var weight = sumWeights(g) + 1;
+
+  // Create border nodes and link them up
+  _.each(g.children(), function(child) {
+    dfs(g, root, nodeSep, weight, height, depths, child);
+  });
+
+  // Save the multiplier for node layers for later removal of empty border
+  // layers.
+  g.graph().nodeRankFactor = nodeSep;
+}
+
+function dfs(g, root, nodeSep, weight, height, depths, v) {
+  var children = g.children(v);
+  if (!children.length) {
+    if (v !== root) {
+      g.setEdge(root, v, { weight: 0, minlen: nodeSep });
+    }
+    return;
+  }
+
+  var top = util.addBorderNode(g, "_bt"),
+      bottom = util.addBorderNode(g, "_bb"),
+      label = g.node(v);
+
+  g.setParent(top, v);
+  label.borderTop = top;
+  g.setParent(bottom, v);
+  label.borderBottom = bottom;
+
+  _.each(children, function(child) {
+    dfs(g, root, nodeSep, weight, height, depths, child);
+
+    var childNode = g.node(child),
+        childTop = childNode.borderTop ? childNode.borderTop : child,
+        childBottom = childNode.borderBottom ? childNode.borderBottom : child,
+        thisWeight = childNode.borderTop ? weight : 2 * weight,
+        minlen = childTop !== childBottom ? 1 : height - depths[v] + 1;
+
+    g.setEdge(top, childTop, {
+      weight: thisWeight,
+      minlen: minlen,
+      nestingEdge: true
+    });
+
+    g.setEdge(childBottom, bottom, {
+      weight: thisWeight,
+      minlen: minlen,
+      nestingEdge: true
+    });
+  });
+
+  if (!g.parent(v)) {
+    g.setEdge(root, top, { weight: 0, minlen: height + depths[v] });
+  }
+}
+
+function treeDepths(g) {
+  var depths = {};
+  function dfs(v, depth) {
+    var children = g.children(v);
+    if (children && children.length) {
+      _.each(children, function(child) {
+        dfs(child, depth + 1);
+      });
+    }
+    depths[v] = depth;
+  }
+  _.each(g.children(), function(v) { dfs(v, 1); });
+  return depths;
+}
+
+function sumWeights(g) {
+  return _.reduce(g.edges(), function(acc, e) {
+    return acc + g.edge(e).weight;
+  }, 0);
+}
+
+function cleanup(g) {
+  var graphLabel = g.graph();
+  g.removeNode(graphLabel.nestingRoot);
+  delete graphLabel.nestingRoot;
+  _.each(g.edges(), function(e) {
+    var edge = g.edge(e);
+    if (edge.nestingEdge) {
+      g.removeEdge(e);
+    }
+  });
+}
+
+},{"./lodash":61,"./util":80}],63:[function(require,module,exports){
+"use strict";
+
+var _ = require("./lodash"),
+    util = require("./util");
+
+module.exports = {
+  run: run,
+  undo: undo
+};
+
+/*
+ * Breaks any long edges in the graph into short segments that span 1 layer
+ * each. This operation is undoable with the denormalize function.
+ *
+ * Pre-conditions:
+ *
+ *    1. The input graph is a DAG.
+ *    2. Each node in the graph has a "rank" property.
+ *
+ * Post-condition:
+ *
+ *    1. All edges in the graph have a length of 1.
+ *    2. Dummy nodes are added where edges have been split into segments.
+ *    3. The graph is augmented with a "dummyChains" attribute which contains
+ *       the first dummy in each chain of dummy nodes produced.
+ */
+function run(g) {
+  g.graph().dummyChains = [];
+  _.each(g.edges(), function(edge) { normalizeEdge(g, edge); });
+}
+
+function normalizeEdge(g, e) {
+  var v = e.v,
+      vRank = g.node(v).rank,
+      w = e.w,
+      wRank = g.node(w).rank,
+      name = e.name,
+      edgeLabel = g.edge(e),
+      labelRank = edgeLabel.labelRank;
+
+  if (wRank === vRank + 1) return;
+
+  g.removeEdge(e);
+
+  var dummy, attrs, i;
+  for (i = 0, ++vRank; vRank < wRank; ++i, ++vRank) {
+    edgeLabel.points = [];
+    attrs = {
+      width: 0, height: 0,
+      edgeLabel: edgeLabel, edgeObj: e,
+      rank: vRank
+    };
+    dummy = util.addDummyNode(g, "edge", attrs, "_d");
+    if (vRank === labelRank) {
+      attrs.width = edgeLabel.width;
+      attrs.height = edgeLabel.height;
+      attrs.dummy = "edge-label";
+      attrs.labelpos = edgeLabel.labelpos;
+    }
+    g.setEdge(v, dummy, { weight: edgeLabel.weight }, name);
+    if (i === 0) {
+      g.graph().dummyChains.push(dummy);
+    }
+    v = dummy;
+  }
+
+  g.setEdge(v, w, { weight: edgeLabel.weight }, name);
+}
+
+function undo(g) {
+  _.each(g.graph().dummyChains, function(v) {
+    var node = g.node(v),
+        origLabel = node.edgeLabel,
+        w;
+    g.setEdge(node.edgeObj, origLabel);
+    while (node.dummy) {
+      w = g.successors(v)[0];
+      g.removeNode(v);
+      origLabel.points.push({ x: node.x, y: node.y });
+      if (node.dummy === "edge-label") {
+        origLabel.x = node.x;
+        origLabel.y = node.y;
+        origLabel.width = node.width;
+        origLabel.height = node.height;
+      }
+      v = w;
+      node = g.node(v);
+    }
+  });
+}
+
+},{"./lodash":61,"./util":80}],64:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = addSubgraphConstraints;
+
+function addSubgraphConstraints(g, cg, vs) {
+  var prev = {},
+      rootPrev;
+
+  _.each(vs, function(v) {
+    var child = g.parent(v),
+        parent,
+        prevChild;
+    while (child) {
+      parent = g.parent(child);
+      if (parent) {
+        prevChild = prev[parent];
+        prev[parent] = child;
+      } else {
+        prevChild = rootPrev;
+        rootPrev = child;
+      }
+      if (prevChild && prevChild !== child) {
+        cg.setEdge(prevChild, child);
+        return;
+      }
+      child = parent;
+    }
+  });
+
+  /*
+  function dfs(v) {
+    var children = v ? g.children(v) : g.children();
+    if (children.length) {
+      var min = Number.POSITIVE_INFINITY,
+          subgraphs = [];
+      _.each(children, function(child) {
+        var childMin = dfs(child);
+        if (g.children(child).length) {
+          subgraphs.push({ v: child, order: childMin });
+        }
+        min = Math.min(min, childMin);
+      });
+      _.reduce(_.sortBy(subgraphs, "order"), function(prev, curr) {
+        cg.setEdge(prev.v, curr.v);
+        return curr;
+      });
+      return min;
+    }
+    return g.node(v).order;
+  }
+  dfs(undefined);
+  */
+}
+
+},{"../lodash":61}],65:[function(require,module,exports){
+var _ = require("../lodash");
+
+module.exports = barycenter;
+
+function barycenter(g, movable) {
+  return _.map(movable, function(v) {
+    var inV = g.inEdges(v);
+    if (!inV.length) {
+      return { v: v };
+    } else {
+      var result = _.reduce(inV, function(acc, e) {
+        var edge = g.edge(e),
+            nodeU = g.node(e.v);
+        return {
+          sum: acc.sum + (edge.weight * nodeU.order),
+          weight: acc.weight + edge.weight
+        };
+      }, { sum: 0, weight: 0 });
+
+      return {
+        v: v,
+        barycenter: result.sum / result.weight,
+        weight: result.weight
+      };
+    }
+  });
+}
+
+
+},{"../lodash":61}],66:[function(require,module,exports){
+var _ = require("../lodash"),
+    Graph = require("../graphlib").Graph;
+
+module.exports = buildLayerGraph;
+
+/*
+ * Constructs a graph that can be used to sort a layer of nodes. The graph will
+ * contain all base and subgraph nodes from the request layer in their original
+ * hierarchy and any edges that are incident on these nodes and are of the type
+ * requested by the "relationship" parameter.
+ *
+ * Nodes from the requested rank that do not have parents are assigned a root
+ * node in the output graph, which is set in the root graph attribute. This
+ * makes it easy to walk the hierarchy of movable nodes during ordering.
+ *
+ * Pre-conditions:
+ *
+ *    1. Input graph is a DAG
+ *    2. Base nodes in the input graph have a rank attribute
+ *    3. Subgraph nodes in the input graph has minRank and maxRank attributes
+ *    4. Edges have an assigned weight
+ *
+ * Post-conditions:
+ *
+ *    1. Output graph has all nodes in the movable rank with preserved
+ *       hierarchy.
+ *    2. Root nodes in the movable layer are made children of the node
+ *       indicated by the root attribute of the graph.
+ *    3. Non-movable nodes incident on movable nodes, selected by the
+ *       relationship parameter, are included in the graph (without hierarchy).
+ *    4. Edges incident on movable nodes, selected by the relationship
+ *       parameter, are added to the output graph.
+ *    5. The weights for copied edges are aggregated as need, since the output
+ *       graph is not a multi-graph.
+ */
+function buildLayerGraph(g, rank, relationship) {
+  var root = createRootNode(g),
+      result = new Graph({ compound: true }).setGraph({ root: root })
+                  .setDefaultNodeLabel(function(v) { return g.node(v); });
+
+  _.each(g.nodes(), function(v) {
+    var node = g.node(v),
+        parent = g.parent(v);
+
+    if (node.rank === rank || node.minRank <= rank && rank <= node.maxRank) {
+      result.setNode(v);
+      result.setParent(v, parent || root);
+
+      // This assumes we have only short edges!
+      _.each(g[relationship](v), function(e) {
+        var u = e.v === v ? e.w : e.v,
+            edge = result.edge(u, v),
+            weight = !_.isUndefined(edge) ? edge.weight : 0;
+        result.setEdge(u, v, { weight: g.edge(e).weight + weight });
+      });
+
+      if (_.has(node, "minRank")) {
+        result.setNode(v, {
+          borderLeft: node.borderLeft[rank],
+          borderRight: node.borderRight[rank]
+        });
+      }
+    }
+  });
+
+  return result;
+}
+
+function createRootNode(g) {
+  var v;
+  while (g.hasNode((v = _.uniqueId("_root"))));
+  return v;
+}
+
+},{"../graphlib":58,"../lodash":61}],67:[function(require,module,exports){
+"use strict";
+
+var _ = require("../lodash");
+
+module.exports = crossCount;
+
+/*
+ * A function that takes a layering (an array of layers, each with an array of
+ * ordererd nodes) and a graph and returns a weighted crossing count.
+ *
+ * Pre-conditions:
+ *
+ *    1. Input graph must be simple (not a multigraph), directed, and include
+ *       only simple edges.
+ *    2. Edges in the input graph must have assigned weights.
+ *
+ * Post-conditions:
+ *
+ *    1. The graph and layering matrix are left unchanged.
+ *
+ * This algorithm is derived from Barth, et al., "Bilayer Cross Counting."
+ */
+function crossCount(g, layering) {
+  var cc = 0;
+  for (var i = 1; i < layering.length; ++i) {
+    cc += twoLayerCrossCount(g, layering[i-1], layering[i]);
+  }
+  return cc;
+}
+
+function twoLayerCrossCount(g, northLayer, southLayer) {
+  // Sort all of the edges between the north and south layers by their position
+  // in the north layer and then the south. Map these edges to the position of
+  // their head in the south layer.
+  var southPos = _.zipObject(southLayer,
+                             _.map(southLayer, function (v, i) { return i; }));
+  var southEntries = _.flatten(_.map(northLayer, function(v) {
+    return _.chain(g.outEdges(v))
+            .map(function(e) {
+              return { pos: southPos[e.w], weight: g.edge(e).weight };
+            })
+            .sortBy("pos")
+            .value();
+  }), true);
+
+  // Build the accumulator tree
+  var firstIndex = 1;
+  while (firstIndex < southLayer.length) firstIndex <<= 1;
+  var treeSize = 2 * firstIndex - 1;
+  firstIndex -= 1;
+  var tree = _.map(new Array(treeSize), function() { return 0; });
+
+  // Calculate the weighted crossings
+  var cc = 0;
+  _.each(southEntries.forEach(function(entry) {
+    var index = entry.pos + firstIndex;
+    tree[index] += entry.weight;
+    var weightSum = 0;
+    while (index > 0) {
+      if (index % 2) {
+        weightSum += tree[index + 1];
+      }
+      index = (index - 1) >> 1;
+      tree[index] += entry.weight;
+    }
+    cc += entry.weight * weightSum;
+  }));
+
+  return cc;
+}
+
+},{"../lodash":61}],68:[function(require,module,exports){
+"use strict";
+
+var _ = require("../lodash"),
+    initOrder = require("./init-order"),
+    crossCount = require("./cross-count"),
+    sortSubgraph = require("./sort-subgraph"),
+    buildLayerGraph = require("./build-layer-graph"),
+    addSubgraphConstraints = require("./add-subgraph-constraints"),
+    Graph = require("../graphlib").Graph,
+    util = require("../util");
+
+module.exports = order;
+
+/*
+ * Applies heuristics to minimize edge crossings in the graph and sets the best
+ * order solution as an order attribute on each node.
+ *
+ * Pre-conditions:
+ *
+ *    1. Graph must be DAG
+ *    2. Graph nodes must be objects with a "rank" attribute
+ *    3. Graph edges must have the "weight" attribute
+ *
+ * Post-conditions:
+ *
+ *    1. Graph nodes will have an "order" attribute based on the results of the
+ *       algorithm.
+ */
+function order(g) {
+  var maxRank = util.maxRank(g),
+      downLayerGraphs = buildLayerGraphs(g, _.range(1, maxRank + 1), "inEdges"),
+      upLayerGraphs = buildLayerGraphs(g, _.range(maxRank - 1, -1, -1), "outEdges");
+
+  var layering = initOrder(g);
+  assignOrder(g, layering);
+
+  var bestCC = Number.POSITIVE_INFINITY,
+      best;
+
+  for (var i = 0, lastBest = 0; lastBest < 4; ++i, ++lastBest) {
+    sweepLayerGraphs(i % 2 ? downLayerGraphs : upLayerGraphs, i % 4 >= 2);
+
+    layering = util.buildLayerMatrix(g);
+    var cc = crossCount(g, layering);
+    if (cc < bestCC) {
+      lastBest = 0;
+      best = _.cloneDeep(layering);
+      bestCC = cc;
+    }
+  }
+
+  assignOrder(g, best);
+}
+
+function buildLayerGraphs(g, ranks, relationship) {
+  return _.map(ranks, function(rank) {
+    return buildLayerGraph(g, rank, relationship);
+  });
+}
+
+function sweepLayerGraphs(layerGraphs, biasRight) {
+  var cg = new Graph();
+  _.each(layerGraphs, function(lg) {
+    var root = lg.graph().root;
+    var sorted = sortSubgraph(lg, root, cg, biasRight);
+    _.each(sorted.vs, function(v, i) {
+      lg.node(v).order = i;
+    });
+    addSubgraphConstraints(lg, cg, sorted.vs);
+  });
+}
+
+function assignOrder(g, layering) {
+  _.each(layering, function(layer) {
+    _.each(layer, function(v, i) {
+      g.node(v).order = i;
+    });
+  });
+}
+
+},{"../graphlib":58,"../lodash":61,"../util":80,"./add-subgraph-constraints":64,"./build-layer-graph":66,"./cross-count":67,"./init-order":69,"./sort-subgraph":71}],69:[function(require,module,exports){
+"use strict";
+
+var _ = require("../lodash");
+
+module.exports = initOrder;
+
+/*
+ * Assigns an initial order value for each node by performing a DFS search
+ * starting from nodes in the first rank. Nodes are assigned an order in their
+ * rank as they are first visited.
+ *
+ * This approach comes from Gansner, et al., "A Technique for Drawing Directed
+ * Graphs."
+ *
+ * Returns a layering matrix with an array per layer and each layer sorted by
+ * the order of its nodes.
+ */
+function initOrder(g) {
+  var visited = {},
+      simpleNodes = _.filter(g.nodes(), function(v) {
+        return !g.children(v).length;
+      }),
+      maxRank = _.max(_.map(simpleNodes, function(v) { return g.node(v).rank; })),
+      layers = _.map(_.range(maxRank + 1), function() { return []; });
+
+  function dfs(v) {
+    if (_.has(visited, v)) return;
+    visited[v] = true;
+    var node = g.node(v);
+    layers[node.rank].push(v);
+    _.each(g.successors(v), dfs);
+  }
+
+  var orderedVs = _.sortBy(simpleNodes, function(v) { return g.node(v).rank; });
+  _.each(orderedVs, dfs);
+
+  return layers;
+}
+
+},{"../lodash":61}],70:[function(require,module,exports){
+"use strict";
+
+var _ = require("../lodash");
+
+module.exports = resolveConflicts;
+
+/*
+ * Given a list of entries of the form {v, barycenter, weight} and a
+ * constraint graph this function will resolve any conflicts between the
+ * constraint graph and the barycenters for the entries. If the barycenters for
+ * an entry would violate a constraint in the constraint graph then we coalesce
+ * the nodes in the conflict into a new node that respects the contraint and
+ * aggregates barycenter and weight information.
+ *
+ * This implementation is based on the description in Forster, "A Fast and
+ * Simple Hueristic for Constrained Two-Level Crossing Reduction," thought it
+ * differs in some specific details.
+ *
+ * Pre-conditions:
+ *
+ *    1. Each entry has the form {v, barycenter, weight}, or if the node has
+ *       no barycenter, then {v}.
+ *
+ * Returns:
+ *
+ *    A new list of entries of the form {vs, i, barycenter, weight}. The list
+ *    `vs` may either be a singleton or it may be an aggregation of nodes
+ *    ordered such that they do not violate constraints from the constraint
+ *    graph. The property `i` is the lowest original index of any of the
+ *    elements in `vs`.
+ */
+function resolveConflicts(entries, cg) {
+  var mappedEntries = {};
+  _.each(entries, function(entry, i) {
+    var tmp = mappedEntries[entry.v] = {
+      indegree: 0,
+      "in": [],
+      out: [],
+      vs: [entry.v],
+      i: i
+    };
+    if (!_.isUndefined(entry.barycenter)) {
+      tmp.barycenter = entry.barycenter;
+      tmp.weight = entry.weight;
+    }
+  });
+
+  _.each(cg.edges(), function(e) {
+    var entryV = mappedEntries[e.v],
+        entryW = mappedEntries[e.w];
+    if (!_.isUndefined(entryV) && !_.isUndefined(entryW)) {
+      entryW.indegree++;
+      entryV.out.push(mappedEntries[e.w]);
+    }
+  });
+
+  var sourceSet = _.filter(mappedEntries, function(entry) {
+    return !entry.indegree;
+  });
+
+  return doResolveConflicts(sourceSet);
+}
+
+function doResolveConflicts(sourceSet) {
+  var entries = [];
+
+  function handleIn(vEntry) {
+    return function(uEntry) {
+      if (uEntry.merged) {
+        return;
+      }
+      if (_.isUndefined(uEntry.barycenter) ||
+          _.isUndefined(vEntry.barycenter) ||
+          uEntry.barycenter >= vEntry.barycenter) {
+        mergeEntries(vEntry, uEntry);
+      }
+    };
+  }
+
+  function handleOut(vEntry) {
+    return function(wEntry) {
+      wEntry["in"].push(vEntry);
+      if (--wEntry.indegree === 0) {
+        sourceSet.push(wEntry);
+      }
+    };
+  }
+
+  while (sourceSet.length) {
+    var entry = sourceSet.pop();
+    entries.push(entry);
+    _.each(entry["in"].reverse(), handleIn(entry));
+    _.each(entry.out, handleOut(entry));
+  }
+
+  return _.chain(entries)
+          .filter(function(entry) { return !entry.merged; })
+          .map(function(entry) {
+            return _.pick(entry, ["vs", "i", "barycenter", "weight"]);
+          })
+          .value();
+}
+
+function mergeEntries(target, source) {
+  var sum = 0,
+      weight = 0;
+
+  if (target.weight) {
+    sum += target.barycenter * target.weight;
+    weight += target.weight;
+  }
+
+  if (source.weight) {
+    sum += source.barycenter * source.weight;
+    weight += source.weight;
+  }
+
+  target.vs = source.vs.concat(target.vs);
+  target.barycenter = sum / weight;
+  target.weight = weight;
+  target.i = Math.min(source.i, target.i);
+  source.merged = true;
+}
+
+},{"../lodash":61}],71:[function(require,module,exports){
+var _ = require("../lodash"),
+    barycenter = require("./barycenter"),
+    resolveConflicts = require("./resolve-conflicts"),
+    sort = require("./sort");
+
+module.exports = sortSubgraph;
+
+function sortSubgraph(g, v, cg, biasRight) {
+  var movable = g.children(v),
+      node = g.node(v),
+      bl = node ? node.borderLeft : undefined,
+      br = node ? node.borderRight: undefined,
+      subgraphs = {};
+
+  if (bl) {
+    movable = _.filter(movable, function(w) {
+      return w !== bl && w !== br;
+    });
+  }
+
+  var barycenters = barycenter(g, movable);
+  _.each(barycenters, function(entry) {
+    if (g.children(entry.v).length) {
+      var subgraphResult = sortSubgraph(g, entry.v, cg, biasRight);
+      subgraphs[entry.v] = subgraphResult;
+      if (_.has(subgraphResult, "barycenter")) {
+        mergeBarycenters(entry, subgraphResult);
+      }
+    }
+  });
+
+  var entries = resolveConflicts(barycenters, cg);
+  expandSubgraphs(entries, subgraphs);
+
+  var result = sort(entries, biasRight);
+
+  if (bl) {
+    result.vs = _.flatten([bl, result.vs, br], true);
+    if (g.predecessors(bl).length) {
+      var blPred = g.node(g.predecessors(bl)[0]),
+          brPred = g.node(g.predecessors(br)[0]);
+      if (!_.has(result, "barycenter")) {
+        result.barycenter = 0;
+        result.weight = 0;
+      }
+      result.barycenter = (result.barycenter * result.weight +
+                           blPred.order + brPred.order) / (result.weight + 2);
+      result.weight += 2;
+    }
+  }
+
+  return result;
+}
+
+function expandSubgraphs(entries, subgraphs) {
+  _.each(entries, function(entry) {
+    entry.vs = _.flatten(entry.vs.map(function(v) {
+      if (subgraphs[v]) {
+        return subgraphs[v].vs;
+      }
+      return v;
+    }), true);
+  });
+}
+
+function mergeBarycenters(target, other) {
+  if (!_.isUndefined(target.barycenter)) {
+    target.barycenter = (target.barycenter * target.weight +
+                         other.barycenter * other.weight) /
+                        (target.weight + other.weight);
+    target.weight += other.weight;
+  } else {
+    target.barycenter = other.barycenter;
+    target.weight = other.weight;
+  }
+}
+
+},{"../lodash":61,"./barycenter":65,"./resolve-conflicts":70,"./sort":72}],72:[function(require,module,exports){
+var _ = require("../lodash"),
+    util = require("../util");
+
+module.exports = sort;
+
+function sort(entries, biasRight) {
+  var parts = util.partition(entries, function(entry) {
+    return _.has(entry, "barycenter");
+  });
+  var sortable = parts.lhs,
+      unsortable = _.sortBy(parts.rhs, function(entry) { return -entry.i; }),
+      vs = [],
+      sum = 0,
+      weight = 0,
+      vsIndex = 0;
+
+  sortable.sort(compareWithBias(!!biasRight));
+
+  vsIndex = consumeUnsortable(vs, unsortable, vsIndex);
+
+  _.each(sortable, function (entry) {
+    vsIndex += entry.vs.length;
+    vs.push(entry.vs);
+    sum += entry.barycenter * entry.weight;
+    weight += entry.weight;
+    vsIndex = consumeUnsortable(vs, unsortable, vsIndex);
+  });
+
+  var result = { vs: _.flatten(vs, true) };
+  if (weight) {
+    result.barycenter = sum / weight;
+    result.weight = weight;
+  }
+  return result;
+}
+
+function consumeUnsortable(vs, unsortable, index) {
+  var last;
+  while (unsortable.length && (last = _.last(unsortable)).i <= index) {
+    unsortable.pop();
+    vs.push(last.vs);
+    index++;
+  }
+  return index;
+}
+
+function compareWithBias(bias) {
+  return function(entryV, entryW) {
+    if (entryV.barycenter < entryW.barycenter) {
+      return -1;
+    } else if (entryV.barycenter > entryW.barycenter) {
+      return 1;
+    }
+
+    return !bias ? entryV.i - entryW.i : entryW.i - entryV.i;
+  };
+}
+
+},{"../lodash":61,"../util":80}],73:[function(require,module,exports){
+var _ = require("./lodash");
+
+module.exports = parentDummyChains;
+
+function parentDummyChains(g) {
+  var postorderNums = postorder(g);
+
+  _.each(g.graph().dummyChains, function(v) {
+    var node = g.node(v),
+        edgeObj = node.edgeObj,
+        pathData = findPath(g, postorderNums, edgeObj.v, edgeObj.w),
+        path = pathData.path,
+        lca = pathData.lca,
+        pathIdx = 0,
+        pathV = path[pathIdx],
+        ascending = true;
+
+    while (v !== edgeObj.w) {
+      node = g.node(v);
+
+      if (ascending) {
+        while ((pathV = path[pathIdx]) !== lca &&
+               g.node(pathV).maxRank < node.rank) {
+          pathIdx++;
+        }
+
+        if (pathV === lca) {
+          ascending = false;
+        }
+      }
+
+      if (!ascending) {
+        while (pathIdx < path.length - 1 &&
+               g.node(pathV = path[pathIdx + 1]).minRank <= node.rank) {
+          pathIdx++;
+        }
+        pathV = path[pathIdx];
+      }
+
+      g.setParent(v, pathV);
+      v = g.successors(v)[0];
+    }
+  });
+}
+
+// Find a path from v to w through the lowest common ancestor (LCA). Return the
+// full path and the LCA.
+function findPath(g, postorderNums, v, w) {
+  var vPath = [],
+      wPath = [],
+      low = Math.min(postorderNums[v].low, postorderNums[w].low),
+      lim = Math.max(postorderNums[v].lim, postorderNums[w].lim),
+      parent,
+      lca;
+
+  // Traverse up from v to find the LCA
+  parent = v;
+  do {
+    parent = g.parent(parent);
+    vPath.push(parent);
+  } while (parent &&
+           (postorderNums[parent].low > low || lim > postorderNums[parent].lim));
+  lca = parent;
+
+  // Traverse from w to LCA
+  parent = w;
+  while ((parent = g.parent(parent)) !== lca) {
+    wPath.push(parent);
+  }
+
+  return { path: vPath.concat(wPath.reverse()), lca: lca };
+}
+
+function postorder(g) {
+  var result = {},
+      lim = 0;
+
+  function dfs(v) {
+    var low = lim;
+    _.each(g.children(v), dfs);
+    result[v] = { low: low, lim: lim++ };
+  }
+  _.each(g.children(), dfs);
+
+  return result;
+}
+
+},{"./lodash":61}],74:[function(require,module,exports){
+"use strict";
+
+var _ = require("../lodash"),
+    Graph = require("../graphlib").Graph,
+    util = require("../util");
+
+/*
+ * This module provides coordinate assignment based on Brandes and Köpf, "Fast
+ * and Simple Horizontal Coordinate Assignment."
+ */
+
+module.exports = {
+  positionX: positionX,
+  findType1Conflicts: findType1Conflicts,
+  findType2Conflicts: findType2Conflicts,
+  addConflict: addConflict,
+  hasConflict: hasConflict,
+  verticalAlignment: verticalAlignment,
+  horizontalCompaction: horizontalCompaction,
+  alignCoordinates: alignCoordinates,
+  findSmallestWidthAlignment: findSmallestWidthAlignment,
+  balance: balance
+};
+
+/*
+ * Marks all edges in the graph with a type-1 conflict with the "type1Conflict"
+ * property. A type-1 conflict is one where a non-inner segment crosses an
+ * inner segment. An inner segment is an edge with both incident nodes marked
+ * with the "dummy" property.
+ *
+ * This algorithm scans layer by layer, starting with the second, for type-1
+ * conflicts between the current layer and the previous layer. For each layer
+ * it scans the nodes from left to right until it reaches one that is incident
+ * on an inner segment. It then scans predecessors to determine if they have
+ * edges that cross that inner segment. At the end a final scan is done for all
+ * nodes on the current rank to see if they cross the last visited inner
+ * segment.
+ *
+ * This algorithm (safely) assumes that a dummy node will only be incident on a
+ * single node in the layers being scanned.
+ */
+function findType1Conflicts(g, layering) {
+  var conflicts = {};
+
+  function visitLayer(prevLayer, layer) {
+    var
+      // last visited node in the previous layer that is incident on an inner
+      // segment.
+      k0 = 0,
+      // Tracks the last node in this layer scanned for crossings with a type-1
+      // segment.
+      scanPos = 0,
+      prevLayerLength = prevLayer.length,
+      lastNode = _.last(layer);
+
+    _.each(layer, function(v, i) {
+      var w = findOtherInnerSegmentNode(g, v),
+          k1 = w ? g.node(w).order : prevLayerLength;
+
+      if (w || v === lastNode) {
+        _.each(layer.slice(scanPos, i +1), function(scanNode) {
+          _.each(g.predecessors(scanNode), function(u) {
+            var uLabel = g.node(u),
+                uPos = uLabel.order;
+            if ((uPos < k0 || k1 < uPos) &&
+                !(uLabel.dummy && g.node(scanNode).dummy)) {
+              addConflict(conflicts, u, scanNode);
+            }
+          });
+        });
+        scanPos = i + 1;
+        k0 = k1;
+      }
+    });
+
+    return layer;
+  }
+
+  _.reduce(layering, visitLayer);
+  return conflicts;
+}
+
+function findType2Conflicts(g, layering) {
+  var conflicts = {};
+
+  function scan(south, southPos, southEnd, prevNorthBorder, nextNorthBorder) {
+    var v;
+    _.each(_.range(southPos, southEnd), function(i) {
+      v = south[i];
+      if (g.node(v).dummy) {
+        _.each(g.predecessors(v), function(u) {
+          var uNode = g.node(u);
+          if (uNode.dummy &&
+              (uNode.order < prevNorthBorder || uNode.order > nextNorthBorder)) {
+            addConflict(conflicts, u, v);
+          }
+        });
+      }
+    });
+  }
+
+
+  function visitLayer(north, south) {
+    var prevNorthPos = -1,
+        nextNorthPos,
+        southPos = 0;
+
+    _.each(south, function(v, southLookahead) {
+      if (g.node(v).dummy === "border") {
+        var predecessors = g.predecessors(v);
+        if (predecessors.length) {
+          nextNorthPos = g.node(predecessors[0]).order;
+          scan(south, southPos, southLookahead, prevNorthPos, nextNorthPos);
+          southPos = southLookahead;
+          prevNorthPos = nextNorthPos;
+        }
+      }
+      scan(south, southPos, south.length, nextNorthPos, north.length);
+    });
+
+    return south;
+  }
+
+  _.reduce(layering, visitLayer);
+  return conflicts;
+}
+
+function findOtherInnerSegmentNode(g, v) {
+  if (g.node(v).dummy) {
+    return _.find(g.predecessors(v), function(u) {
+      return g.node(u).dummy;
+    });
+  }
+}
+
+function addConflict(conflicts, v, w) {
+  if (v > w) {
+    var tmp = v;
+    v = w;
+    w = tmp;
+  }
+
+  var conflictsV = conflicts[v];
+  if (!conflictsV) {
+    conflicts[v] = conflictsV = {};
+  }
+  conflictsV[w] = true;
+}
+
+function hasConflict(conflicts, v, w) {
+  if (v > w) {
+    var tmp = v;
+    v = w;
+    w = tmp;
+  }
+  return _.has(conflicts[v], w);
+}
+
+/*
+ * Try to align nodes into vertical "blocks" where possible. This algorithm
+ * attempts to align a node with one of its median neighbors. If the edge
+ * connecting a neighbor is a type-1 conflict then we ignore that possibility.
+ * If a previous node has already formed a block with a node after the node
+ * we're trying to form a block with, we also ignore that possibility - our
+ * blocks would be split in that scenario.
+ */
+function verticalAlignment(g, layering, conflicts, neighborFn) {
+  var root = {},
+      align = {},
+      pos = {};
+
+  // We cache the position here based on the layering because the graph and
+  // layering may be out of sync. The layering matrix is manipulated to
+  // generate different extreme alignments.
+  _.each(layering, function(layer) {
+    _.each(layer, function(v, order) {
+      root[v] = v;
+      align[v] = v;
+      pos[v] = order;
+    });
+  });
+
+  _.each(layering, function(layer) {
+    var prevIdx = -1;
+    _.each(layer, function(v) {
+      var ws = neighborFn(v);
+      if (ws.length) {
+        ws = _.sortBy(ws, function(w) { return pos[w]; });
+        var mp = (ws.length - 1) / 2;
+        for (var i = Math.floor(mp), il = Math.ceil(mp); i <= il; ++i) {
+          var w = ws[i];
+          if (align[v] === v &&
+              prevIdx < pos[w] &&
+              !hasConflict(conflicts, v, w)) {
+            align[w] = v;
+            align[v] = root[v] = root[w];
+            prevIdx = pos[w];
+          }
+        }
+      }
+    });
+  });
+
+  return { root: root, align: align };
+}
+
+function horizontalCompaction(g, layering, root, align, reverseSep) {
+  // This portion of the algorithm differs from BK due to a number of problems.
+  // Instead of their algorithm we construct a new block graph and do two
+  // sweeps. The first sweep places blocks with the smallest possible
+  // coordinates. The second sweep removes unused space by moving blocks to the
+  // greatest coordinates without violating separation.
+  var xs = {},
+      blockG = buildBlockGraph(g, layering, root, reverseSep);
+
+  // First pass, assign smallest coordinates via DFS
+  var visited = {};
+  function pass1(v) {
+    if (!_.has(visited, v)) {
+      visited[v] = true;
+      xs[v] = _.reduce(blockG.inEdges(v), function(max, e) {
+        pass1(e.v);
+        return Math.max(max, xs[e.v] + blockG.edge(e));
+      }, 0);
+    }
+  }
+  _.each(blockG.nodes(), pass1);
+
+  var borderType = reverseSep ? "borderLeft" : "borderRight";
+  function pass2(v) {
+    if (visited[v] !== 2) {
+      visited[v]++;
+      var node = g.node(v);
+      var min = _.reduce(blockG.outEdges(v), function(min, e) {
+        pass2(e.w);
+        return Math.min(min, xs[e.w] - blockG.edge(e));
+      }, Number.POSITIVE_INFINITY);
+      if (min !== Number.POSITIVE_INFINITY && node.borderType !== borderType) {
+        xs[v] = Math.max(xs[v], min);
+      }
+    }
+  }
+  _.each(blockG.nodes(), pass2);
+
+  // Assign x coordinates to all nodes
+  _.each(align, function(v) {
+    xs[v] = xs[root[v]];
+  });
+
+  return xs;
+}
+
+
+function buildBlockGraph(g, layering, root, reverseSep) {
+  var blockGraph = new Graph(),
+      graphLabel = g.graph(),
+      sepFn = sep(graphLabel.nodesep, graphLabel.edgesep, reverseSep);
+
+  _.each(layering, function(layer) {
+    var u;
+    _.each(layer, function(v) {
+      var vRoot = root[v];
+      blockGraph.setNode(vRoot);
+      if (u) {
+        var uRoot = root[u],
+            prevMax = blockGraph.edge(uRoot, vRoot);
+        blockGraph.setEdge(uRoot, vRoot, Math.max(sepFn(g, v, u), prevMax || 0));
