@@ -30072,3 +30072,1281 @@ module.exports=require(51)
       }
       return array;
     }
+
+    /**
+     * The base implementation of `_.filter` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function} predicate The function invoked per iteration.
+     * @returns {Array} Returns the new filtered array.
+     */
+    function baseFilter(collection, predicate) {
+      var result = [];
+      baseEach(collection, function(value, index, collection) {
+        if (predicate(value, index, collection)) {
+          result.push(value);
+        }
+      });
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.flatten` with support for restricting flattening.
+     *
+     * @private
+     * @param {Array} array The array to flatten.
+     * @param {number} depth The maximum recursion depth.
+     * @param {boolean} [predicate=isFlattenable] The function invoked per iteration.
+     * @param {boolean} [isStrict] Restrict to values that pass `predicate` checks.
+     * @param {Array} [result=[]] The initial result value.
+     * @returns {Array} Returns the new flattened array.
+     */
+    function baseFlatten(array, depth, predicate, isStrict, result) {
+      var index = -1,
+          length = array.length;
+
+      predicate || (predicate = isFlattenable);
+      result || (result = []);
+
+      while (++index < length) {
+        var value = array[index];
+        if (depth > 0 && predicate(value)) {
+          if (depth > 1) {
+            // Recursively flatten arrays (susceptible to call stack limits).
+            baseFlatten(value, depth - 1, predicate, isStrict, result);
+          } else {
+            arrayPush(result, value);
+          }
+        } else if (!isStrict) {
+          result[result.length] = value;
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `baseForOwn` which iterates over `object`
+     * properties returned by `keysFunc` and invokes `iteratee` for each property.
+     * Iteratee functions may exit iteration early by explicitly returning `false`.
+     *
+     * @private
+     * @param {Object} object The object to iterate over.
+     * @param {Function} iteratee The function invoked per iteration.
+     * @param {Function} keysFunc The function to get the keys of `object`.
+     * @returns {Object} Returns `object`.
+     */
+    var baseFor = createBaseFor();
+
+    /**
+     * This function is like `baseFor` except that it iterates over properties
+     * in the opposite order.
+     *
+     * @private
+     * @param {Object} object The object to iterate over.
+     * @param {Function} iteratee The function invoked per iteration.
+     * @param {Function} keysFunc The function to get the keys of `object`.
+     * @returns {Object} Returns `object`.
+     */
+    var baseForRight = createBaseFor(true);
+
+    /**
+     * The base implementation of `_.forOwn` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Object} object The object to iterate over.
+     * @param {Function} iteratee The function invoked per iteration.
+     * @returns {Object} Returns `object`.
+     */
+    function baseForOwn(object, iteratee) {
+      return object && baseFor(object, iteratee, keys);
+    }
+
+    /**
+     * The base implementation of `_.forOwnRight` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Object} object The object to iterate over.
+     * @param {Function} iteratee The function invoked per iteration.
+     * @returns {Object} Returns `object`.
+     */
+    function baseForOwnRight(object, iteratee) {
+      return object && baseForRight(object, iteratee, keys);
+    }
+
+    /**
+     * The base implementation of `_.functions` which creates an array of
+     * `object` function property names filtered from `props`.
+     *
+     * @private
+     * @param {Object} object The object to inspect.
+     * @param {Array} props The property names to filter.
+     * @returns {Array} Returns the function names.
+     */
+    function baseFunctions(object, props) {
+      return arrayFilter(props, function(key) {
+        return isFunction(object[key]);
+      });
+    }
+
+    /**
+     * The base implementation of `_.get` without support for default values.
+     *
+     * @private
+     * @param {Object} object The object to query.
+     * @param {Array|string} path The path of the property to get.
+     * @returns {*} Returns the resolved value.
+     */
+    function baseGet(object, path) {
+      path = isKey(path, object) ? [path] : castPath(path);
+
+      var index = 0,
+          length = path.length;
+
+      while (object != null && index < length) {
+        object = object[toKey(path[index++])];
+      }
+      return (index && index == length) ? object : undefined;
+    }
+
+    /**
+     * The base implementation of `getAllKeys` and `getAllKeysIn` which uses
+     * `keysFunc` and `symbolsFunc` to get the enumerable property names and
+     * symbols of `object`.
+     *
+     * @private
+     * @param {Object} object The object to query.
+     * @param {Function} keysFunc The function to get the keys of `object`.
+     * @param {Function} symbolsFunc The function to get the symbols of `object`.
+     * @returns {Array} Returns the array of property names and symbols.
+     */
+    function baseGetAllKeys(object, keysFunc, symbolsFunc) {
+      var result = keysFunc(object);
+      return isArray(object) ? result : arrayPush(result, symbolsFunc(object));
+    }
+
+    /**
+     * The base implementation of `_.gt` which doesn't coerce arguments to numbers.
+     *
+     * @private
+     * @param {*} value The value to compare.
+     * @param {*} other The other value to compare.
+     * @returns {boolean} Returns `true` if `value` is greater than `other`,
+     *  else `false`.
+     */
+    function baseGt(value, other) {
+      return value > other;
+    }
+
+    /**
+     * The base implementation of `_.has` without support for deep paths.
+     *
+     * @private
+     * @param {Object} [object] The object to query.
+     * @param {Array|string} key The key to check.
+     * @returns {boolean} Returns `true` if `key` exists, else `false`.
+     */
+    function baseHas(object, key) {
+      // Avoid a bug in IE 10-11 where objects with a [[Prototype]] of `null`,
+      // that are composed entirely of index properties, return `false` for
+      // `hasOwnProperty` checks of them.
+      return object != null &&
+        (hasOwnProperty.call(object, key) ||
+          (typeof object == 'object' && key in object && getPrototype(object) === null));
+    }
+
+    /**
+     * The base implementation of `_.hasIn` without support for deep paths.
+     *
+     * @private
+     * @param {Object} [object] The object to query.
+     * @param {Array|string} key The key to check.
+     * @returns {boolean} Returns `true` if `key` exists, else `false`.
+     */
+    function baseHasIn(object, key) {
+      return object != null && key in Object(object);
+    }
+
+    /**
+     * The base implementation of `_.inRange` which doesn't coerce arguments to numbers.
+     *
+     * @private
+     * @param {number} number The number to check.
+     * @param {number} start The start of the range.
+     * @param {number} end The end of the range.
+     * @returns {boolean} Returns `true` if `number` is in the range, else `false`.
+     */
+    function baseInRange(number, start, end) {
+      return number >= nativeMin(start, end) && number < nativeMax(start, end);
+    }
+
+    /**
+     * The base implementation of methods like `_.intersection`, without support
+     * for iteratee shorthands, that accepts an array of arrays to inspect.
+     *
+     * @private
+     * @param {Array} arrays The arrays to inspect.
+     * @param {Function} [iteratee] The iteratee invoked per element.
+     * @param {Function} [comparator] The comparator invoked per element.
+     * @returns {Array} Returns the new array of shared values.
+     */
+    function baseIntersection(arrays, iteratee, comparator) {
+      var includes = comparator ? arrayIncludesWith : arrayIncludes,
+          length = arrays[0].length,
+          othLength = arrays.length,
+          othIndex = othLength,
+          caches = Array(othLength),
+          maxLength = Infinity,
+          result = [];
+
+      while (othIndex--) {
+        var array = arrays[othIndex];
+        if (othIndex && iteratee) {
+          array = arrayMap(array, baseUnary(iteratee));
+        }
+        maxLength = nativeMin(array.length, maxLength);
+        caches[othIndex] = !comparator && (iteratee || (length >= 120 && array.length >= 120))
+          ? new SetCache(othIndex && array)
+          : undefined;
+      }
+      array = arrays[0];
+
+      var index = -1,
+          seen = caches[0];
+
+      outer:
+      while (++index < length && result.length < maxLength) {
+        var value = array[index],
+            computed = iteratee ? iteratee(value) : value;
+
+        value = (comparator || value !== 0) ? value : 0;
+        if (!(seen
+              ? cacheHas(seen, computed)
+              : includes(result, computed, comparator)
+            )) {
+          othIndex = othLength;
+          while (--othIndex) {
+            var cache = caches[othIndex];
+            if (!(cache
+                  ? cacheHas(cache, computed)
+                  : includes(arrays[othIndex], computed, comparator))
+                ) {
+              continue outer;
+            }
+          }
+          if (seen) {
+            seen.push(computed);
+          }
+          result.push(value);
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.invert` and `_.invertBy` which inverts
+     * `object` with values transformed by `iteratee` and set by `setter`.
+     *
+     * @private
+     * @param {Object} object The object to iterate over.
+     * @param {Function} setter The function to set `accumulator` values.
+     * @param {Function} iteratee The iteratee to transform values.
+     * @param {Object} accumulator The initial inverted object.
+     * @returns {Function} Returns `accumulator`.
+     */
+    function baseInverter(object, setter, iteratee, accumulator) {
+      baseForOwn(object, function(value, key, object) {
+        setter(accumulator, iteratee(value), key, object);
+      });
+      return accumulator;
+    }
+
+    /**
+     * The base implementation of `_.invoke` without support for individual
+     * method arguments.
+     *
+     * @private
+     * @param {Object} object The object to query.
+     * @param {Array|string} path The path of the method to invoke.
+     * @param {Array} args The arguments to invoke the method with.
+     * @returns {*} Returns the result of the invoked method.
+     */
+    function baseInvoke(object, path, args) {
+      if (!isKey(path, object)) {
+        path = castPath(path);
+        object = parent(object, path);
+        path = last(path);
+      }
+      var func = object == null ? object : object[toKey(path)];
+      return func == null ? undefined : apply(func, object, args);
+    }
+
+    /**
+     * The base implementation of `_.isEqual` which supports partial comparisons
+     * and tracks traversed objects.
+     *
+     * @private
+     * @param {*} value The value to compare.
+     * @param {*} other The other value to compare.
+     * @param {Function} [customizer] The function to customize comparisons.
+     * @param {boolean} [bitmask] The bitmask of comparison flags.
+     *  The bitmask may be composed of the following flags:
+     *     1 - Unordered comparison
+     *     2 - Partial comparison
+     * @param {Object} [stack] Tracks traversed `value` and `other` objects.
+     * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+     */
+    function baseIsEqual(value, other, customizer, bitmask, stack) {
+      if (value === other) {
+        return true;
+      }
+      if (value == null || other == null || (!isObject(value) && !isObjectLike(other))) {
+        return value !== value && other !== other;
+      }
+      return baseIsEqualDeep(value, other, baseIsEqual, customizer, bitmask, stack);
+    }
+
+    /**
+     * A specialized version of `baseIsEqual` for arrays and objects which performs
+     * deep comparisons and tracks traversed objects enabling objects with circular
+     * references to be compared.
+     *
+     * @private
+     * @param {Object} object The object to compare.
+     * @param {Object} other The other object to compare.
+     * @param {Function} equalFunc The function to determine equivalents of values.
+     * @param {Function} [customizer] The function to customize comparisons.
+     * @param {number} [bitmask] The bitmask of comparison flags. See `baseIsEqual`
+     *  for more details.
+     * @param {Object} [stack] Tracks traversed `object` and `other` objects.
+     * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
+     */
+    function baseIsEqualDeep(object, other, equalFunc, customizer, bitmask, stack) {
+      var objIsArr = isArray(object),
+          othIsArr = isArray(other),
+          objTag = arrayTag,
+          othTag = arrayTag;
+
+      if (!objIsArr) {
+        objTag = getTag(object);
+        objTag = objTag == argsTag ? objectTag : objTag;
+      }
+      if (!othIsArr) {
+        othTag = getTag(other);
+        othTag = othTag == argsTag ? objectTag : othTag;
+      }
+      var objIsObj = objTag == objectTag && !isHostObject(object),
+          othIsObj = othTag == objectTag && !isHostObject(other),
+          isSameTag = objTag == othTag;
+
+      if (isSameTag && !objIsObj) {
+        stack || (stack = new Stack);
+        return (objIsArr || isTypedArray(object))
+          ? equalArrays(object, other, equalFunc, customizer, bitmask, stack)
+          : equalByTag(object, other, objTag, equalFunc, customizer, bitmask, stack);
+      }
+      if (!(bitmask & PARTIAL_COMPARE_FLAG)) {
+        var objIsWrapped = objIsObj && hasOwnProperty.call(object, '__wrapped__'),
+            othIsWrapped = othIsObj && hasOwnProperty.call(other, '__wrapped__');
+
+        if (objIsWrapped || othIsWrapped) {
+          var objUnwrapped = objIsWrapped ? object.value() : object,
+              othUnwrapped = othIsWrapped ? other.value() : other;
+
+          stack || (stack = new Stack);
+          return equalFunc(objUnwrapped, othUnwrapped, customizer, bitmask, stack);
+        }
+      }
+      if (!isSameTag) {
+        return false;
+      }
+      stack || (stack = new Stack);
+      return equalObjects(object, other, equalFunc, customizer, bitmask, stack);
+    }
+
+    /**
+     * The base implementation of `_.isMatch` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Object} object The object to inspect.
+     * @param {Object} source The object of property values to match.
+     * @param {Array} matchData The property names, values, and compare flags to match.
+     * @param {Function} [customizer] The function to customize comparisons.
+     * @returns {boolean} Returns `true` if `object` is a match, else `false`.
+     */
+    function baseIsMatch(object, source, matchData, customizer) {
+      var index = matchData.length,
+          length = index,
+          noCustomizer = !customizer;
+
+      if (object == null) {
+        return !length;
+      }
+      object = Object(object);
+      while (index--) {
+        var data = matchData[index];
+        if ((noCustomizer && data[2])
+              ? data[1] !== object[data[0]]
+              : !(data[0] in object)
+            ) {
+          return false;
+        }
+      }
+      while (++index < length) {
+        data = matchData[index];
+        var key = data[0],
+            objValue = object[key],
+            srcValue = data[1];
+
+        if (noCustomizer && data[2]) {
+          if (objValue === undefined && !(key in object)) {
+            return false;
+          }
+        } else {
+          var stack = new Stack;
+          if (customizer) {
+            var result = customizer(objValue, srcValue, key, object, source, stack);
+          }
+          if (!(result === undefined
+                ? baseIsEqual(srcValue, objValue, customizer, UNORDERED_COMPARE_FLAG | PARTIAL_COMPARE_FLAG, stack)
+                : result
+              )) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    /**
+     * The base implementation of `_.isNative` without bad shim checks.
+     *
+     * @private
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if `value` is a native function,
+     *  else `false`.
+     */
+    function baseIsNative(value) {
+      if (!isObject(value) || isMasked(value)) {
+        return false;
+      }
+      var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
+      return pattern.test(toSource(value));
+    }
+
+    /**
+     * The base implementation of `_.iteratee`.
+     *
+     * @private
+     * @param {*} [value=_.identity] The value to convert to an iteratee.
+     * @returns {Function} Returns the iteratee.
+     */
+    function baseIteratee(value) {
+      // Don't store the `typeof` result in a variable to avoid a JIT bug in Safari 9.
+      // See https://bugs.webkit.org/show_bug.cgi?id=156034 for more details.
+      if (typeof value == 'function') {
+        return value;
+      }
+      if (value == null) {
+        return identity;
+      }
+      if (typeof value == 'object') {
+        return isArray(value)
+          ? baseMatchesProperty(value[0], value[1])
+          : baseMatches(value);
+      }
+      return property(value);
+    }
+
+    /**
+     * The base implementation of `_.keys` which doesn't skip the constructor
+     * property of prototypes or treat sparse arrays as dense.
+     *
+     * @private
+     * @param {Object} object The object to query.
+     * @returns {Array} Returns the array of property names.
+     */
+    function baseKeys(object) {
+      return nativeKeys(Object(object));
+    }
+
+    /**
+     * The base implementation of `_.keysIn` which doesn't skip the constructor
+     * property of prototypes or treat sparse arrays as dense.
+     *
+     * @private
+     * @param {Object} object The object to query.
+     * @returns {Array} Returns the array of property names.
+     */
+    function baseKeysIn(object) {
+      object = object == null ? object : Object(object);
+
+      var result = [];
+      for (var key in object) {
+        result.push(key);
+      }
+      return result;
+    }
+
+    // Fallback for IE < 9 with es6-shim.
+    if (enumerate && !propertyIsEnumerable.call({ 'valueOf': 1 }, 'valueOf')) {
+      baseKeysIn = function(object) {
+        return iteratorToArray(enumerate(object));
+      };
+    }
+
+    /**
+     * The base implementation of `_.lt` which doesn't coerce arguments to numbers.
+     *
+     * @private
+     * @param {*} value The value to compare.
+     * @param {*} other The other value to compare.
+     * @returns {boolean} Returns `true` if `value` is less than `other`,
+     *  else `false`.
+     */
+    function baseLt(value, other) {
+      return value < other;
+    }
+
+    /**
+     * The base implementation of `_.map` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function} iteratee The function invoked per iteration.
+     * @returns {Array} Returns the new mapped array.
+     */
+    function baseMap(collection, iteratee) {
+      var index = -1,
+          result = isArrayLike(collection) ? Array(collection.length) : [];
+
+      baseEach(collection, function(value, key, collection) {
+        result[++index] = iteratee(value, key, collection);
+      });
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.matches` which doesn't clone `source`.
+     *
+     * @private
+     * @param {Object} source The object of property values to match.
+     * @returns {Function} Returns the new spec function.
+     */
+    function baseMatches(source) {
+      var matchData = getMatchData(source);
+      if (matchData.length == 1 && matchData[0][2]) {
+        return matchesStrictComparable(matchData[0][0], matchData[0][1]);
+      }
+      return function(object) {
+        return object === source || baseIsMatch(object, source, matchData);
+      };
+    }
+
+    /**
+     * The base implementation of `_.matchesProperty` which doesn't clone `srcValue`.
+     *
+     * @private
+     * @param {string} path The path of the property to get.
+     * @param {*} srcValue The value to match.
+     * @returns {Function} Returns the new spec function.
+     */
+    function baseMatchesProperty(path, srcValue) {
+      if (isKey(path) && isStrictComparable(srcValue)) {
+        return matchesStrictComparable(toKey(path), srcValue);
+      }
+      return function(object) {
+        var objValue = get(object, path);
+        return (objValue === undefined && objValue === srcValue)
+          ? hasIn(object, path)
+          : baseIsEqual(srcValue, objValue, undefined, UNORDERED_COMPARE_FLAG | PARTIAL_COMPARE_FLAG);
+      };
+    }
+
+    /**
+     * The base implementation of `_.merge` without support for multiple sources.
+     *
+     * @private
+     * @param {Object} object The destination object.
+     * @param {Object} source The source object.
+     * @param {number} srcIndex The index of `source`.
+     * @param {Function} [customizer] The function to customize merged values.
+     * @param {Object} [stack] Tracks traversed source values and their merged
+     *  counterparts.
+     */
+    function baseMerge(object, source, srcIndex, customizer, stack) {
+      if (object === source) {
+        return;
+      }
+      if (!(isArray(source) || isTypedArray(source))) {
+        var props = keysIn(source);
+      }
+      arrayEach(props || source, function(srcValue, key) {
+        if (props) {
+          key = srcValue;
+          srcValue = source[key];
+        }
+        if (isObject(srcValue)) {
+          stack || (stack = new Stack);
+          baseMergeDeep(object, source, key, srcIndex, baseMerge, customizer, stack);
+        }
+        else {
+          var newValue = customizer
+            ? customizer(object[key], srcValue, (key + ''), object, source, stack)
+            : undefined;
+
+          if (newValue === undefined) {
+            newValue = srcValue;
+          }
+          assignMergeValue(object, key, newValue);
+        }
+      });
+    }
+
+    /**
+     * A specialized version of `baseMerge` for arrays and objects which performs
+     * deep merges and tracks traversed objects enabling objects with circular
+     * references to be merged.
+     *
+     * @private
+     * @param {Object} object The destination object.
+     * @param {Object} source The source object.
+     * @param {string} key The key of the value to merge.
+     * @param {number} srcIndex The index of `source`.
+     * @param {Function} mergeFunc The function to merge values.
+     * @param {Function} [customizer] The function to customize assigned values.
+     * @param {Object} [stack] Tracks traversed source values and their merged
+     *  counterparts.
+     */
+    function baseMergeDeep(object, source, key, srcIndex, mergeFunc, customizer, stack) {
+      var objValue = object[key],
+          srcValue = source[key],
+          stacked = stack.get(srcValue);
+
+      if (stacked) {
+        assignMergeValue(object, key, stacked);
+        return;
+      }
+      var newValue = customizer
+        ? customizer(objValue, srcValue, (key + ''), object, source, stack)
+        : undefined;
+
+      var isCommon = newValue === undefined;
+
+      if (isCommon) {
+        newValue = srcValue;
+        if (isArray(srcValue) || isTypedArray(srcValue)) {
+          if (isArray(objValue)) {
+            newValue = objValue;
+          }
+          else if (isArrayLikeObject(objValue)) {
+            newValue = copyArray(objValue);
+          }
+          else {
+            isCommon = false;
+            newValue = baseClone(srcValue, true);
+          }
+        }
+        else if (isPlainObject(srcValue) || isArguments(srcValue)) {
+          if (isArguments(objValue)) {
+            newValue = toPlainObject(objValue);
+          }
+          else if (!isObject(objValue) || (srcIndex && isFunction(objValue))) {
+            isCommon = false;
+            newValue = baseClone(srcValue, true);
+          }
+          else {
+            newValue = objValue;
+          }
+        }
+        else {
+          isCommon = false;
+        }
+      }
+      stack.set(srcValue, newValue);
+
+      if (isCommon) {
+        // Recursively merge objects and arrays (susceptible to call stack limits).
+        mergeFunc(newValue, srcValue, srcIndex, customizer, stack);
+      }
+      stack['delete'](srcValue);
+      assignMergeValue(object, key, newValue);
+    }
+
+    /**
+     * The base implementation of `_.nth` which doesn't coerce `n` to an integer.
+     *
+     * @private
+     * @param {Array} array The array to query.
+     * @param {number} n The index of the element to return.
+     * @returns {*} Returns the nth element of `array`.
+     */
+    function baseNth(array, n) {
+      var length = array.length;
+      if (!length) {
+        return;
+      }
+      n += n < 0 ? length : 0;
+      return isIndex(n, length) ? array[n] : undefined;
+    }
+
+    /**
+     * The base implementation of `_.orderBy` without param guards.
+     *
+     * @private
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function[]|Object[]|string[]} iteratees The iteratees to sort by.
+     * @param {string[]} orders The sort orders of `iteratees`.
+     * @returns {Array} Returns the new sorted array.
+     */
+    function baseOrderBy(collection, iteratees, orders) {
+      var index = -1;
+      iteratees = arrayMap(iteratees.length ? iteratees : [identity], baseUnary(getIteratee()));
+
+      var result = baseMap(collection, function(value, key, collection) {
+        var criteria = arrayMap(iteratees, function(iteratee) {
+          return iteratee(value);
+        });
+        return { 'criteria': criteria, 'index': ++index, 'value': value };
+      });
+
+      return baseSortBy(result, function(object, other) {
+        return compareMultiple(object, other, orders);
+      });
+    }
+
+    /**
+     * The base implementation of `_.pick` without support for individual
+     * property identifiers.
+     *
+     * @private
+     * @param {Object} object The source object.
+     * @param {string[]} props The property identifiers to pick.
+     * @returns {Object} Returns the new object.
+     */
+    function basePick(object, props) {
+      object = Object(object);
+      return arrayReduce(props, function(result, key) {
+        if (key in object) {
+          result[key] = object[key];
+        }
+        return result;
+      }, {});
+    }
+
+    /**
+     * The base implementation of  `_.pickBy` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Object} object The source object.
+     * @param {Function} predicate The function invoked per property.
+     * @returns {Object} Returns the new object.
+     */
+    function basePickBy(object, predicate) {
+      var index = -1,
+          props = getAllKeysIn(object),
+          length = props.length,
+          result = {};
+
+      while (++index < length) {
+        var key = props[index],
+            value = object[key];
+
+        if (predicate(value, key)) {
+          result[key] = value;
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.property` without support for deep paths.
+     *
+     * @private
+     * @param {string} key The key of the property to get.
+     * @returns {Function} Returns the new accessor function.
+     */
+    function baseProperty(key) {
+      return function(object) {
+        return object == null ? undefined : object[key];
+      };
+    }
+
+    /**
+     * A specialized version of `baseProperty` which supports deep paths.
+     *
+     * @private
+     * @param {Array|string} path The path of the property to get.
+     * @returns {Function} Returns the new accessor function.
+     */
+    function basePropertyDeep(path) {
+      return function(object) {
+        return baseGet(object, path);
+      };
+    }
+
+    /**
+     * The base implementation of `_.pullAllBy` without support for iteratee
+     * shorthands.
+     *
+     * @private
+     * @param {Array} array The array to modify.
+     * @param {Array} values The values to remove.
+     * @param {Function} [iteratee] The iteratee invoked per element.
+     * @param {Function} [comparator] The comparator invoked per element.
+     * @returns {Array} Returns `array`.
+     */
+    function basePullAll(array, values, iteratee, comparator) {
+      var indexOf = comparator ? baseIndexOfWith : baseIndexOf,
+          index = -1,
+          length = values.length,
+          seen = array;
+
+      if (array === values) {
+        values = copyArray(values);
+      }
+      if (iteratee) {
+        seen = arrayMap(array, baseUnary(iteratee));
+      }
+      while (++index < length) {
+        var fromIndex = 0,
+            value = values[index],
+            computed = iteratee ? iteratee(value) : value;
+
+        while ((fromIndex = indexOf(seen, computed, fromIndex, comparator)) > -1) {
+          if (seen !== array) {
+            splice.call(seen, fromIndex, 1);
+          }
+          splice.call(array, fromIndex, 1);
+        }
+      }
+      return array;
+    }
+
+    /**
+     * The base implementation of `_.pullAt` without support for individual
+     * indexes or capturing the removed elements.
+     *
+     * @private
+     * @param {Array} array The array to modify.
+     * @param {number[]} indexes The indexes of elements to remove.
+     * @returns {Array} Returns `array`.
+     */
+    function basePullAt(array, indexes) {
+      var length = array ? indexes.length : 0,
+          lastIndex = length - 1;
+
+      while (length--) {
+        var index = indexes[length];
+        if (length == lastIndex || index !== previous) {
+          var previous = index;
+          if (isIndex(index)) {
+            splice.call(array, index, 1);
+          }
+          else if (!isKey(index, array)) {
+            var path = castPath(index),
+                object = parent(array, path);
+
+            if (object != null) {
+              delete object[toKey(last(path))];
+            }
+          }
+          else {
+            delete array[toKey(index)];
+          }
+        }
+      }
+      return array;
+    }
+
+    /**
+     * The base implementation of `_.random` without support for returning
+     * floating-point numbers.
+     *
+     * @private
+     * @param {number} lower The lower bound.
+     * @param {number} upper The upper bound.
+     * @returns {number} Returns the random number.
+     */
+    function baseRandom(lower, upper) {
+      return lower + nativeFloor(nativeRandom() * (upper - lower + 1));
+    }
+
+    /**
+     * The base implementation of `_.range` and `_.rangeRight` which doesn't
+     * coerce arguments to numbers.
+     *
+     * @private
+     * @param {number} start The start of the range.
+     * @param {number} end The end of the range.
+     * @param {number} step The value to increment or decrement by.
+     * @param {boolean} [fromRight] Specify iterating from right to left.
+     * @returns {Array} Returns the range of numbers.
+     */
+    function baseRange(start, end, step, fromRight) {
+      var index = -1,
+          length = nativeMax(nativeCeil((end - start) / (step || 1)), 0),
+          result = Array(length);
+
+      while (length--) {
+        result[fromRight ? length : ++index] = start;
+        start += step;
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.repeat` which doesn't coerce arguments.
+     *
+     * @private
+     * @param {string} string The string to repeat.
+     * @param {number} n The number of times to repeat the string.
+     * @returns {string} Returns the repeated string.
+     */
+    function baseRepeat(string, n) {
+      var result = '';
+      if (!string || n < 1 || n > MAX_SAFE_INTEGER) {
+        return result;
+      }
+      // Leverage the exponentiation by squaring algorithm for a faster repeat.
+      // See https://en.wikipedia.org/wiki/Exponentiation_by_squaring for more details.
+      do {
+        if (n % 2) {
+          result += string;
+        }
+        n = nativeFloor(n / 2);
+        if (n) {
+          string += string;
+        }
+      } while (n);
+
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.set`.
+     *
+     * @private
+     * @param {Object} object The object to query.
+     * @param {Array|string} path The path of the property to set.
+     * @param {*} value The value to set.
+     * @param {Function} [customizer] The function to customize path creation.
+     * @returns {Object} Returns `object`.
+     */
+    function baseSet(object, path, value, customizer) {
+      path = isKey(path, object) ? [path] : castPath(path);
+
+      var index = -1,
+          length = path.length,
+          lastIndex = length - 1,
+          nested = object;
+
+      while (nested != null && ++index < length) {
+        var key = toKey(path[index]);
+        if (isObject(nested)) {
+          var newValue = value;
+          if (index != lastIndex) {
+            var objValue = nested[key];
+            newValue = customizer ? customizer(objValue, key, nested) : undefined;
+            if (newValue === undefined) {
+              newValue = objValue == null
+                ? (isIndex(path[index + 1]) ? [] : {})
+                : objValue;
+            }
+          }
+          assignValue(nested, key, newValue);
+        }
+        nested = nested[key];
+      }
+      return object;
+    }
+
+    /**
+     * The base implementation of `setData` without support for hot loop detection.
+     *
+     * @private
+     * @param {Function} func The function to associate metadata with.
+     * @param {*} data The metadata.
+     * @returns {Function} Returns `func`.
+     */
+    var baseSetData = !metaMap ? identity : function(func, data) {
+      metaMap.set(func, data);
+      return func;
+    };
+
+    /**
+     * The base implementation of `_.slice` without an iteratee call guard.
+     *
+     * @private
+     * @param {Array} array The array to slice.
+     * @param {number} [start=0] The start position.
+     * @param {number} [end=array.length] The end position.
+     * @returns {Array} Returns the slice of `array`.
+     */
+    function baseSlice(array, start, end) {
+      var index = -1,
+          length = array.length;
+
+      if (start < 0) {
+        start = -start > length ? 0 : (length + start);
+      }
+      end = end > length ? length : end;
+      if (end < 0) {
+        end += length;
+      }
+      length = start > end ? 0 : ((end - start) >>> 0);
+      start >>>= 0;
+
+      var result = Array(length);
+      while (++index < length) {
+        result[index] = array[index + start];
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.some` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function} predicate The function invoked per iteration.
+     * @returns {boolean} Returns `true` if any element passes the predicate check,
+     *  else `false`.
+     */
+    function baseSome(collection, predicate) {
+      var result;
+
+      baseEach(collection, function(value, index, collection) {
+        result = predicate(value, index, collection);
+        return !result;
+      });
+      return !!result;
+    }
+
+    /**
+     * The base implementation of `_.sortedIndex` and `_.sortedLastIndex` which
+     * performs a binary search of `array` to determine the index at which `value`
+     * should be inserted into `array` in order to maintain its sort order.
+     *
+     * @private
+     * @param {Array} array The sorted array to inspect.
+     * @param {*} value The value to evaluate.
+     * @param {boolean} [retHighest] Specify returning the highest qualified index.
+     * @returns {number} Returns the index at which `value` should be inserted
+     *  into `array`.
+     */
+    function baseSortedIndex(array, value, retHighest) {
+      var low = 0,
+          high = array ? array.length : low;
+
+      if (typeof value == 'number' && value === value && high <= HALF_MAX_ARRAY_LENGTH) {
+        while (low < high) {
+          var mid = (low + high) >>> 1,
+              computed = array[mid];
+
+          if (computed !== null && !isSymbol(computed) &&
+              (retHighest ? (computed <= value) : (computed < value))) {
+            low = mid + 1;
+          } else {
+            high = mid;
+          }
+        }
+        return high;
+      }
+      return baseSortedIndexBy(array, value, identity, retHighest);
+    }
+
+    /**
+     * The base implementation of `_.sortedIndexBy` and `_.sortedLastIndexBy`
+     * which invokes `iteratee` for `value` and each element of `array` to compute
+     * their sort ranking. The iteratee is invoked with one argument; (value).
+     *
+     * @private
+     * @param {Array} array The sorted array to inspect.
+     * @param {*} value The value to evaluate.
+     * @param {Function} iteratee The iteratee invoked per element.
+     * @param {boolean} [retHighest] Specify returning the highest qualified index.
+     * @returns {number} Returns the index at which `value` should be inserted
+     *  into `array`.
+     */
+    function baseSortedIndexBy(array, value, iteratee, retHighest) {
+      value = iteratee(value);
+
+      var low = 0,
+          high = array ? array.length : 0,
+          valIsNaN = value !== value,
+          valIsNull = value === null,
+          valIsSymbol = isSymbol(value),
+          valIsUndefined = value === undefined;
+
+      while (low < high) {
+        var mid = nativeFloor((low + high) / 2),
+            computed = iteratee(array[mid]),
+            othIsDefined = computed !== undefined,
+            othIsNull = computed === null,
+            othIsReflexive = computed === computed,
+            othIsSymbol = isSymbol(computed);
+
+        if (valIsNaN) {
+          var setLow = retHighest || othIsReflexive;
+        } else if (valIsUndefined) {
+          setLow = othIsReflexive && (retHighest || othIsDefined);
+        } else if (valIsNull) {
+          setLow = othIsReflexive && othIsDefined && (retHighest || !othIsNull);
+        } else if (valIsSymbol) {
+          setLow = othIsReflexive && othIsDefined && !othIsNull && (retHighest || !othIsSymbol);
+        } else if (othIsNull || othIsSymbol) {
+          setLow = false;
+        } else {
+          setLow = retHighest ? (computed <= value) : (computed < value);
+        }
+        if (setLow) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      return nativeMin(high, MAX_ARRAY_INDEX);
+    }
+
+    /**
+     * The base implementation of `_.sortedUniq` and `_.sortedUniqBy` without
+     * support for iteratee shorthands.
+     *
+     * @private
+     * @param {Array} array The array to inspect.
+     * @param {Function} [iteratee] The iteratee invoked per element.
+     * @returns {Array} Returns the new duplicate free array.
+     */
+    function baseSortedUniq(array, iteratee) {
+      var index = -1,
+          length = array.length,
+          resIndex = 0,
+          result = [];
+
+      while (++index < length) {
+        var value = array[index],
+            computed = iteratee ? iteratee(value) : value;
+
+        if (!index || !eq(computed, seen)) {
+          var seen = computed;
+          result[resIndex++] = value === 0 ? 0 : value;
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.toNumber` which doesn't ensure correct
+     * conversions of binary, hexadecimal, or octal string values.
+     *
+     * @private
+     * @param {*} value The value to process.
+     * @returns {number} Returns the number.
+     */
+    function baseToNumber(value) {
+      if (typeof value == 'number') {
+        return value;
+      }
+      if (isSymbol(value)) {
+        return NAN;
+      }
+      return +value;
+    }
+
+    /**
+     * The base implementation of `_.toString` which doesn't convert nullish
+     * values to empty strings.
+     *
+     * @private
+     * @param {*} value The value to process.
+     * @returns {string} Returns the string.
+     */
+    function baseToString(value) {
+      // Exit early for strings to avoid a performance hit in some environments.
+      if (typeof value == 'string') {
+        return value;
+      }
+      if (isSymbol(value)) {
+        return symbolToString ? symbolToString.call(value) : '';
+      }
+      var result = (value + '');
+      return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+    }
+
+    /**
+     * The base implementation of `_.uniqBy` without support for iteratee shorthands.
+     *
+     * @private
+     * @param {Array} array The array to inspect.
+     * @param {Function} [iteratee] The iteratee invoked per element.
+     * @param {Function} [comparator] The comparator invoked per element.
+     * @returns {Array} Returns the new duplicate free array.
+     */
+    function baseUniq(array, iteratee, comparator) {
+      var index = -1,
+          includes = arrayIncludes,
+          length = array.length,
+          isCommon = true,
+          result = [],
+          seen = result;
+
+      if (comparator) {
+        isCommon = false;
+        includes = arrayIncludesWith;
+      }
+      else if (length >= LARGE_ARRAY_SIZE) {
+        var set = iteratee ? null : createSet(array);
+        if (set) {
+          return setToArray(set);
+        }
+        isCommon = false;
+        includes = cacheHas;
+        seen = new SetCache;
+      }
+      else {
+        seen = iteratee ? [] : result;
+      }
+      outer:
+      while (++index < length) {
+        var value = array[index],
+            computed = iteratee ? iteratee(value) : value;
+
+        value = (comparator || value !== 0) ? value : 0;
+        if (isCommon && computed === computed) {
+          var seenIndex = seen.length;
+          while (seenIndex--) {
+            if (seen[seenIndex] === computed) {
+              continue outer;
+            }
+          }
+          if (iteratee) {
+            seen.push(computed);
+          }
+          result.push(value);
+        }
+        else if (!includes(seen, computed, comparator)) {
+          if (seen !== result) {
+            seen.push(computed);
+          }
+          result.push(value);
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.unset`.
+     *
+     * @private
+     * @param {Object} object The object to modify.
+     * @param {Array|string} path The path of the property to unset.
+     * @returns {boolean} Returns `true` if the property is deleted, else `false`.
+     */
+    function baseUnset(object, path) {
+      path = isKey(path, object) ? [path] : castPath(path);
+      object = parent(object, path);
+
+      var key = toKey(last(path));
+      return !(object != null && baseHas(object, key)) || delete object[key];
+    }
