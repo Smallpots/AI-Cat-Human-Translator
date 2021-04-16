@@ -35219,3 +35219,1253 @@ module.exports=require(51)
     function uniqBy(array, iteratee) {
       return (array && array.length)
         ? baseUniq(array, getIteratee(iteratee))
+        : [];
+    }
+
+    /**
+     * This method is like `_.uniq` except that it accepts `comparator` which
+     * is invoked to compare elements of `array`. The comparator is invoked with
+     * two arguments: (arrVal, othVal).
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Array
+     * @param {Array} array The array to inspect.
+     * @param {Function} [comparator] The comparator invoked per element.
+     * @returns {Array} Returns the new duplicate free array.
+     * @example
+     *
+     * var objects = [{ 'x': 1, 'y': 2 }, { 'x': 2, 'y': 1 }, { 'x': 1, 'y': 2 }];
+     *
+     * _.uniqWith(objects, _.isEqual);
+     * // => [{ 'x': 1, 'y': 2 }, { 'x': 2, 'y': 1 }]
+     */
+    function uniqWith(array, comparator) {
+      return (array && array.length)
+        ? baseUniq(array, undefined, comparator)
+        : [];
+    }
+
+    /**
+     * This method is like `_.zip` except that it accepts an array of grouped
+     * elements and creates an array regrouping the elements to their pre-zip
+     * configuration.
+     *
+     * @static
+     * @memberOf _
+     * @since 1.2.0
+     * @category Array
+     * @param {Array} array The array of grouped elements to process.
+     * @returns {Array} Returns the new array of regrouped elements.
+     * @example
+     *
+     * var zipped = _.zip(['fred', 'barney'], [30, 40], [true, false]);
+     * // => [['fred', 30, true], ['barney', 40, false]]
+     *
+     * _.unzip(zipped);
+     * // => [['fred', 'barney'], [30, 40], [true, false]]
+     */
+    function unzip(array) {
+      if (!(array && array.length)) {
+        return [];
+      }
+      var length = 0;
+      array = arrayFilter(array, function(group) {
+        if (isArrayLikeObject(group)) {
+          length = nativeMax(group.length, length);
+          return true;
+        }
+      });
+      return baseTimes(length, function(index) {
+        return arrayMap(array, baseProperty(index));
+      });
+    }
+
+    /**
+     * This method is like `_.unzip` except that it accepts `iteratee` to specify
+     * how regrouped values should be combined. The iteratee is invoked with the
+     * elements of each group: (...group).
+     *
+     * @static
+     * @memberOf _
+     * @since 3.8.0
+     * @category Array
+     * @param {Array} array The array of grouped elements to process.
+     * @param {Function} [iteratee=_.identity] The function to combine
+     *  regrouped values.
+     * @returns {Array} Returns the new array of regrouped elements.
+     * @example
+     *
+     * var zipped = _.zip([1, 2], [10, 20], [100, 200]);
+     * // => [[1, 10, 100], [2, 20, 200]]
+     *
+     * _.unzipWith(zipped, _.add);
+     * // => [3, 30, 300]
+     */
+    function unzipWith(array, iteratee) {
+      if (!(array && array.length)) {
+        return [];
+      }
+      var result = unzip(array);
+      if (iteratee == null) {
+        return result;
+      }
+      return arrayMap(result, function(group) {
+        return apply(iteratee, undefined, group);
+      });
+    }
+
+    /**
+     * Creates an array excluding all given values using
+     * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
+     * for equality comparisons.
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Array
+     * @param {Array} array The array to inspect.
+     * @param {...*} [values] The values to exclude.
+     * @returns {Array} Returns the new array of filtered values.
+     * @see _.difference, _.xor
+     * @example
+     *
+     * _.without([2, 1, 2, 3], 1, 2);
+     * // => [3]
+     */
+    var without = rest(function(array, values) {
+      return isArrayLikeObject(array)
+        ? baseDifference(array, values)
+        : [];
+    });
+
+    /**
+     * Creates an array of unique values that is the
+     * [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference)
+     * of the given arrays. The order of result values is determined by the order
+     * they occur in the arrays.
+     *
+     * @static
+     * @memberOf _
+     * @since 2.4.0
+     * @category Array
+     * @param {...Array} [arrays] The arrays to inspect.
+     * @returns {Array} Returns the new array of filtered values.
+     * @see _.difference, _.without
+     * @example
+     *
+     * _.xor([2, 1], [2, 3]);
+     * // => [1, 3]
+     */
+    var xor = rest(function(arrays) {
+      return baseXor(arrayFilter(arrays, isArrayLikeObject));
+    });
+
+    /**
+     * This method is like `_.xor` except that it accepts `iteratee` which is
+     * invoked for each element of each `arrays` to generate the criterion by
+     * which by which they're compared. The iteratee is invoked with one argument:
+     * (value).
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Array
+     * @param {...Array} [arrays] The arrays to inspect.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The iteratee invoked per element.
+     * @returns {Array} Returns the new array of filtered values.
+     * @example
+     *
+     * _.xorBy([2.1, 1.2], [2.3, 3.4], Math.floor);
+     * // => [1.2, 3.4]
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.xorBy([{ 'x': 1 }], [{ 'x': 2 }, { 'x': 1 }], 'x');
+     * // => [{ 'x': 2 }]
+     */
+    var xorBy = rest(function(arrays) {
+      var iteratee = last(arrays);
+      if (isArrayLikeObject(iteratee)) {
+        iteratee = undefined;
+      }
+      return baseXor(arrayFilter(arrays, isArrayLikeObject), getIteratee(iteratee));
+    });
+
+    /**
+     * This method is like `_.xor` except that it accepts `comparator` which is
+     * invoked to compare elements of `arrays`. The comparator is invoked with
+     * two arguments: (arrVal, othVal).
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Array
+     * @param {...Array} [arrays] The arrays to inspect.
+     * @param {Function} [comparator] The comparator invoked per element.
+     * @returns {Array} Returns the new array of filtered values.
+     * @example
+     *
+     * var objects = [{ 'x': 1, 'y': 2 }, { 'x': 2, 'y': 1 }];
+     * var others = [{ 'x': 1, 'y': 1 }, { 'x': 1, 'y': 2 }];
+     *
+     * _.xorWith(objects, others, _.isEqual);
+     * // => [{ 'x': 2, 'y': 1 }, { 'x': 1, 'y': 1 }]
+     */
+    var xorWith = rest(function(arrays) {
+      var comparator = last(arrays);
+      if (isArrayLikeObject(comparator)) {
+        comparator = undefined;
+      }
+      return baseXor(arrayFilter(arrays, isArrayLikeObject), undefined, comparator);
+    });
+
+    /**
+     * Creates an array of grouped elements, the first of which contains the
+     * first elements of the given arrays, the second of which contains the
+     * second elements of the given arrays, and so on.
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Array
+     * @param {...Array} [arrays] The arrays to process.
+     * @returns {Array} Returns the new array of grouped elements.
+     * @example
+     *
+     * _.zip(['fred', 'barney'], [30, 40], [true, false]);
+     * // => [['fred', 30, true], ['barney', 40, false]]
+     */
+    var zip = rest(unzip);
+
+    /**
+     * This method is like `_.fromPairs` except that it accepts two arrays,
+     * one of property identifiers and one of corresponding values.
+     *
+     * @static
+     * @memberOf _
+     * @since 0.4.0
+     * @category Array
+     * @param {Array} [props=[]] The property identifiers.
+     * @param {Array} [values=[]] The property values.
+     * @returns {Object} Returns the new object.
+     * @example
+     *
+     * _.zipObject(['a', 'b'], [1, 2]);
+     * // => { 'a': 1, 'b': 2 }
+     */
+    function zipObject(props, values) {
+      return baseZipObject(props || [], values || [], assignValue);
+    }
+
+    /**
+     * This method is like `_.zipObject` except that it supports property paths.
+     *
+     * @static
+     * @memberOf _
+     * @since 4.1.0
+     * @category Array
+     * @param {Array} [props=[]] The property identifiers.
+     * @param {Array} [values=[]] The property values.
+     * @returns {Object} Returns the new object.
+     * @example
+     *
+     * _.zipObjectDeep(['a.b[0].c', 'a.b[1].d'], [1, 2]);
+     * // => { 'a': { 'b': [{ 'c': 1 }, { 'd': 2 }] } }
+     */
+    function zipObjectDeep(props, values) {
+      return baseZipObject(props || [], values || [], baseSet);
+    }
+
+    /**
+     * This method is like `_.zip` except that it accepts `iteratee` to specify
+     * how grouped values should be combined. The iteratee is invoked with the
+     * elements of each group: (...group).
+     *
+     * @static
+     * @memberOf _
+     * @since 3.8.0
+     * @category Array
+     * @param {...Array} [arrays] The arrays to process.
+     * @param {Function} [iteratee=_.identity] The function to combine grouped values.
+     * @returns {Array} Returns the new array of grouped elements.
+     * @example
+     *
+     * _.zipWith([1, 2], [10, 20], [100, 200], function(a, b, c) {
+     *   return a + b + c;
+     * });
+     * // => [111, 222]
+     */
+    var zipWith = rest(function(arrays) {
+      var length = arrays.length,
+          iteratee = length > 1 ? arrays[length - 1] : undefined;
+
+      iteratee = typeof iteratee == 'function' ? (arrays.pop(), iteratee) : undefined;
+      return unzipWith(arrays, iteratee);
+    });
+
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * Creates a `lodash` wrapper instance that wraps `value` with explicit method
+     * chain sequences enabled. The result of such sequences must be unwrapped
+     * with `_#value`.
+     *
+     * @static
+     * @memberOf _
+     * @since 1.3.0
+     * @category Seq
+     * @param {*} value The value to wrap.
+     * @returns {Object} Returns the new `lodash` wrapper instance.
+     * @example
+     *
+     * var users = [
+     *   { 'user': 'barney',  'age': 36 },
+     *   { 'user': 'fred',    'age': 40 },
+     *   { 'user': 'pebbles', 'age': 1 }
+     * ];
+     *
+     * var youngest = _
+     *   .chain(users)
+     *   .sortBy('age')
+     *   .map(function(o) {
+     *     return o.user + ' is ' + o.age;
+     *   })
+     *   .head()
+     *   .value();
+     * // => 'pebbles is 1'
+     */
+    function chain(value) {
+      var result = lodash(value);
+      result.__chain__ = true;
+      return result;
+    }
+
+    /**
+     * This method invokes `interceptor` and returns `value`. The interceptor
+     * is invoked with one argument; (value). The purpose of this method is to
+     * "tap into" a method chain sequence in order to modify intermediate results.
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Seq
+     * @param {*} value The value to provide to `interceptor`.
+     * @param {Function} interceptor The function to invoke.
+     * @returns {*} Returns `value`.
+     * @example
+     *
+     * _([1, 2, 3])
+     *  .tap(function(array) {
+     *    // Mutate input array.
+     *    array.pop();
+     *  })
+     *  .reverse()
+     *  .value();
+     * // => [2, 1]
+     */
+    function tap(value, interceptor) {
+      interceptor(value);
+      return value;
+    }
+
+    /**
+     * This method is like `_.tap` except that it returns the result of `interceptor`.
+     * The purpose of this method is to "pass thru" values replacing intermediate
+     * results in a method chain sequence.
+     *
+     * @static
+     * @memberOf _
+     * @since 3.0.0
+     * @category Seq
+     * @param {*} value The value to provide to `interceptor`.
+     * @param {Function} interceptor The function to invoke.
+     * @returns {*} Returns the result of `interceptor`.
+     * @example
+     *
+     * _('  abc  ')
+     *  .chain()
+     *  .trim()
+     *  .thru(function(value) {
+     *    return [value];
+     *  })
+     *  .value();
+     * // => ['abc']
+     */
+    function thru(value, interceptor) {
+      return interceptor(value);
+    }
+
+    /**
+     * This method is the wrapper version of `_.at`.
+     *
+     * @name at
+     * @memberOf _
+     * @since 1.0.0
+     * @category Seq
+     * @param {...(string|string[])} [paths] The property paths of elements to pick.
+     * @returns {Object} Returns the new `lodash` wrapper instance.
+     * @example
+     *
+     * var object = { 'a': [{ 'b': { 'c': 3 } }, 4] };
+     *
+     * _(object).at(['a[0].b.c', 'a[1]']).value();
+     * // => [3, 4]
+     */
+    var wrapperAt = rest(function(paths) {
+      paths = baseFlatten(paths, 1);
+      var length = paths.length,
+          start = length ? paths[0] : 0,
+          value = this.__wrapped__,
+          interceptor = function(object) { return baseAt(object, paths); };
+
+      if (length > 1 || this.__actions__.length ||
+          !(value instanceof LazyWrapper) || !isIndex(start)) {
+        return this.thru(interceptor);
+      }
+      value = value.slice(start, +start + (length ? 1 : 0));
+      value.__actions__.push({
+        'func': thru,
+        'args': [interceptor],
+        'thisArg': undefined
+      });
+      return new LodashWrapper(value, this.__chain__).thru(function(array) {
+        if (length && !array.length) {
+          array.push(undefined);
+        }
+        return array;
+      });
+    });
+
+    /**
+     * Creates a `lodash` wrapper instance with explicit method chain sequences enabled.
+     *
+     * @name chain
+     * @memberOf _
+     * @since 0.1.0
+     * @category Seq
+     * @returns {Object} Returns the new `lodash` wrapper instance.
+     * @example
+     *
+     * var users = [
+     *   { 'user': 'barney', 'age': 36 },
+     *   { 'user': 'fred',   'age': 40 }
+     * ];
+     *
+     * // A sequence without explicit chaining.
+     * _(users).head();
+     * // => { 'user': 'barney', 'age': 36 }
+     *
+     * // A sequence with explicit chaining.
+     * _(users)
+     *   .chain()
+     *   .head()
+     *   .pick('user')
+     *   .value();
+     * // => { 'user': 'barney' }
+     */
+    function wrapperChain() {
+      return chain(this);
+    }
+
+    /**
+     * Executes the chain sequence and returns the wrapped result.
+     *
+     * @name commit
+     * @memberOf _
+     * @since 3.2.0
+     * @category Seq
+     * @returns {Object} Returns the new `lodash` wrapper instance.
+     * @example
+     *
+     * var array = [1, 2];
+     * var wrapped = _(array).push(3);
+     *
+     * console.log(array);
+     * // => [1, 2]
+     *
+     * wrapped = wrapped.commit();
+     * console.log(array);
+     * // => [1, 2, 3]
+     *
+     * wrapped.last();
+     * // => 3
+     *
+     * console.log(array);
+     * // => [1, 2, 3]
+     */
+    function wrapperCommit() {
+      return new LodashWrapper(this.value(), this.__chain__);
+    }
+
+    /**
+     * Gets the next value on a wrapped object following the
+     * [iterator protocol](https://mdn.io/iteration_protocols#iterator).
+     *
+     * @name next
+     * @memberOf _
+     * @since 4.0.0
+     * @category Seq
+     * @returns {Object} Returns the next iterator value.
+     * @example
+     *
+     * var wrapped = _([1, 2]);
+     *
+     * wrapped.next();
+     * // => { 'done': false, 'value': 1 }
+     *
+     * wrapped.next();
+     * // => { 'done': false, 'value': 2 }
+     *
+     * wrapped.next();
+     * // => { 'done': true, 'value': undefined }
+     */
+    function wrapperNext() {
+      if (this.__values__ === undefined) {
+        this.__values__ = toArray(this.value());
+      }
+      var done = this.__index__ >= this.__values__.length,
+          value = done ? undefined : this.__values__[this.__index__++];
+
+      return { 'done': done, 'value': value };
+    }
+
+    /**
+     * Enables the wrapper to be iterable.
+     *
+     * @name Symbol.iterator
+     * @memberOf _
+     * @since 4.0.0
+     * @category Seq
+     * @returns {Object} Returns the wrapper object.
+     * @example
+     *
+     * var wrapped = _([1, 2]);
+     *
+     * wrapped[Symbol.iterator]() === wrapped;
+     * // => true
+     *
+     * Array.from(wrapped);
+     * // => [1, 2]
+     */
+    function wrapperToIterator() {
+      return this;
+    }
+
+    /**
+     * Creates a clone of the chain sequence planting `value` as the wrapped value.
+     *
+     * @name plant
+     * @memberOf _
+     * @since 3.2.0
+     * @category Seq
+     * @param {*} value The value to plant.
+     * @returns {Object} Returns the new `lodash` wrapper instance.
+     * @example
+     *
+     * function square(n) {
+     *   return n * n;
+     * }
+     *
+     * var wrapped = _([1, 2]).map(square);
+     * var other = wrapped.plant([3, 4]);
+     *
+     * other.value();
+     * // => [9, 16]
+     *
+     * wrapped.value();
+     * // => [1, 4]
+     */
+    function wrapperPlant(value) {
+      var result,
+          parent = this;
+
+      while (parent instanceof baseLodash) {
+        var clone = wrapperClone(parent);
+        clone.__index__ = 0;
+        clone.__values__ = undefined;
+        if (result) {
+          previous.__wrapped__ = clone;
+        } else {
+          result = clone;
+        }
+        var previous = clone;
+        parent = parent.__wrapped__;
+      }
+      previous.__wrapped__ = value;
+      return result;
+    }
+
+    /**
+     * This method is the wrapper version of `_.reverse`.
+     *
+     * **Note:** This method mutates the wrapped array.
+     *
+     * @name reverse
+     * @memberOf _
+     * @since 0.1.0
+     * @category Seq
+     * @returns {Object} Returns the new `lodash` wrapper instance.
+     * @example
+     *
+     * var array = [1, 2, 3];
+     *
+     * _(array).reverse().value()
+     * // => [3, 2, 1]
+     *
+     * console.log(array);
+     * // => [3, 2, 1]
+     */
+    function wrapperReverse() {
+      var value = this.__wrapped__;
+      if (value instanceof LazyWrapper) {
+        var wrapped = value;
+        if (this.__actions__.length) {
+          wrapped = new LazyWrapper(this);
+        }
+        wrapped = wrapped.reverse();
+        wrapped.__actions__.push({
+          'func': thru,
+          'args': [reverse],
+          'thisArg': undefined
+        });
+        return new LodashWrapper(wrapped, this.__chain__);
+      }
+      return this.thru(reverse);
+    }
+
+    /**
+     * Executes the chain sequence to resolve the unwrapped value.
+     *
+     * @name value
+     * @memberOf _
+     * @since 0.1.0
+     * @alias toJSON, valueOf
+     * @category Seq
+     * @returns {*} Returns the resolved unwrapped value.
+     * @example
+     *
+     * _([1, 2, 3]).value();
+     * // => [1, 2, 3]
+     */
+    function wrapperValue() {
+      return baseWrapperValue(this.__wrapped__, this.__actions__);
+    }
+
+    /*------------------------------------------------------------------------*/
+
+    /**
+     * Creates an object composed of keys generated from the results of running
+     * each element of `collection` thru `iteratee`. The corresponding value of
+     * each key is the number of times the key was returned by `iteratee`. The
+     * iteratee is invoked with one argument: (value).
+     *
+     * @static
+     * @memberOf _
+     * @since 0.5.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The iteratee to transform keys.
+     * @returns {Object} Returns the composed aggregate object.
+     * @example
+     *
+     * _.countBy([6.1, 4.2, 6.3], Math.floor);
+     * // => { '4': 1, '6': 2 }
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.countBy(['one', 'two', 'three'], 'length');
+     * // => { '3': 2, '5': 1 }
+     */
+    var countBy = createAggregator(function(result, value, key) {
+      hasOwnProperty.call(result, key) ? ++result[key] : (result[key] = 1);
+    });
+
+    /**
+     * Checks if `predicate` returns truthy for **all** elements of `collection`.
+     * Iteration is stopped once `predicate` returns falsey. The predicate is
+     * invoked with three arguments: (value, index|key, collection).
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [predicate=_.identity]
+     *  The function invoked per iteration.
+     * @param- {Object} [guard] Enables use as an iteratee for methods like `_.map`.
+     * @returns {boolean} Returns `true` if all elements pass the predicate check,
+     *  else `false`.
+     * @example
+     *
+     * _.every([true, 1, null, 'yes'], Boolean);
+     * // => false
+     *
+     * var users = [
+     *   { 'user': 'barney', 'age': 36, 'active': false },
+     *   { 'user': 'fred',   'age': 40, 'active': false }
+     * ];
+     *
+     * // The `_.matches` iteratee shorthand.
+     * _.every(users, { 'user': 'barney', 'active': false });
+     * // => false
+     *
+     * // The `_.matchesProperty` iteratee shorthand.
+     * _.every(users, ['active', false]);
+     * // => true
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.every(users, 'active');
+     * // => false
+     */
+    function every(collection, predicate, guard) {
+      var func = isArray(collection) ? arrayEvery : baseEvery;
+      if (guard && isIterateeCall(collection, predicate, guard)) {
+        predicate = undefined;
+      }
+      return func(collection, getIteratee(predicate, 3));
+    }
+
+    /**
+     * Iterates over elements of `collection`, returning an array of all elements
+     * `predicate` returns truthy for. The predicate is invoked with three
+     * arguments: (value, index|key, collection).
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [predicate=_.identity]
+     *  The function invoked per iteration.
+     * @returns {Array} Returns the new filtered array.
+     * @see _.reject
+     * @example
+     *
+     * var users = [
+     *   { 'user': 'barney', 'age': 36, 'active': true },
+     *   { 'user': 'fred',   'age': 40, 'active': false }
+     * ];
+     *
+     * _.filter(users, function(o) { return !o.active; });
+     * // => objects for ['fred']
+     *
+     * // The `_.matches` iteratee shorthand.
+     * _.filter(users, { 'age': 36, 'active': true });
+     * // => objects for ['barney']
+     *
+     * // The `_.matchesProperty` iteratee shorthand.
+     * _.filter(users, ['active', false]);
+     * // => objects for ['fred']
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.filter(users, 'active');
+     * // => objects for ['barney']
+     */
+    function filter(collection, predicate) {
+      var func = isArray(collection) ? arrayFilter : baseFilter;
+      return func(collection, getIteratee(predicate, 3));
+    }
+
+    /**
+     * Iterates over elements of `collection`, returning the first element
+     * `predicate` returns truthy for. The predicate is invoked with three
+     * arguments: (value, index|key, collection).
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to search.
+     * @param {Array|Function|Object|string} [predicate=_.identity]
+     *  The function invoked per iteration.
+     * @param {number} [fromIndex=0] The index to search from.
+     * @returns {*} Returns the matched element, else `undefined`.
+     * @example
+     *
+     * var users = [
+     *   { 'user': 'barney',  'age': 36, 'active': true },
+     *   { 'user': 'fred',    'age': 40, 'active': false },
+     *   { 'user': 'pebbles', 'age': 1,  'active': true }
+     * ];
+     *
+     * _.find(users, function(o) { return o.age < 40; });
+     * // => object for 'barney'
+     *
+     * // The `_.matches` iteratee shorthand.
+     * _.find(users, { 'age': 1, 'active': true });
+     * // => object for 'pebbles'
+     *
+     * // The `_.matchesProperty` iteratee shorthand.
+     * _.find(users, ['active', false]);
+     * // => object for 'fred'
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.find(users, 'active');
+     * // => object for 'barney'
+     */
+    var find = createFind(findIndex);
+
+    /**
+     * This method is like `_.find` except that it iterates over elements of
+     * `collection` from right to left.
+     *
+     * @static
+     * @memberOf _
+     * @since 2.0.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to search.
+     * @param {Array|Function|Object|string} [predicate=_.identity]
+     *  The function invoked per iteration.
+     * @param {number} [fromIndex=collection.length-1] The index to search from.
+     * @returns {*} Returns the matched element, else `undefined`.
+     * @example
+     *
+     * _.findLast([1, 2, 3, 4], function(n) {
+     *   return n % 2 == 1;
+     * });
+     * // => 3
+     */
+    var findLast = createFind(findLastIndex);
+
+    /**
+     * Creates a flattened array of values by running each element in `collection`
+     * thru `iteratee` and flattening the mapped results. The iteratee is invoked
+     * with three arguments: (value, index|key, collection).
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The function invoked per iteration.
+     * @returns {Array} Returns the new flattened array.
+     * @example
+     *
+     * function duplicate(n) {
+     *   return [n, n];
+     * }
+     *
+     * _.flatMap([1, 2], duplicate);
+     * // => [1, 1, 2, 2]
+     */
+    function flatMap(collection, iteratee) {
+      return baseFlatten(map(collection, iteratee), 1);
+    }
+
+    /**
+     * This method is like `_.flatMap` except that it recursively flattens the
+     * mapped results.
+     *
+     * @static
+     * @memberOf _
+     * @since 4.7.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The function invoked per iteration.
+     * @returns {Array} Returns the new flattened array.
+     * @example
+     *
+     * function duplicate(n) {
+     *   return [[[n, n]]];
+     * }
+     *
+     * _.flatMapDeep([1, 2], duplicate);
+     * // => [1, 1, 2, 2]
+     */
+    function flatMapDeep(collection, iteratee) {
+      return baseFlatten(map(collection, iteratee), INFINITY);
+    }
+
+    /**
+     * This method is like `_.flatMap` except that it recursively flattens the
+     * mapped results up to `depth` times.
+     *
+     * @static
+     * @memberOf _
+     * @since 4.7.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The function invoked per iteration.
+     * @param {number} [depth=1] The maximum recursion depth.
+     * @returns {Array} Returns the new flattened array.
+     * @example
+     *
+     * function duplicate(n) {
+     *   return [[[n, n]]];
+     * }
+     *
+     * _.flatMapDepth([1, 2], duplicate, 2);
+     * // => [[1, 1], [2, 2]]
+     */
+    function flatMapDepth(collection, iteratee, depth) {
+      depth = depth === undefined ? 1 : toInteger(depth);
+      return baseFlatten(map(collection, iteratee), depth);
+    }
+
+    /**
+     * Iterates over elements of `collection` and invokes `iteratee` for each element.
+     * The iteratee is invoked with three arguments: (value, index|key, collection).
+     * Iteratee functions may exit iteration early by explicitly returning `false`.
+     *
+     * **Note:** As with other "Collections" methods, objects with a "length"
+     * property are iterated like arrays. To avoid this behavior use `_.forIn`
+     * or `_.forOwn` for object iteration.
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @alias each
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function} [iteratee=_.identity] The function invoked per iteration.
+     * @returns {Array|Object} Returns `collection`.
+     * @see _.forEachRight
+     * @example
+     *
+     * _([1, 2]).forEach(function(value) {
+     *   console.log(value);
+     * });
+     * // => Logs `1` then `2`.
+     *
+     * _.forEach({ 'a': 1, 'b': 2 }, function(value, key) {
+     *   console.log(key);
+     * });
+     * // => Logs 'a' then 'b' (iteration order is not guaranteed).
+     */
+    function forEach(collection, iteratee) {
+      var func = isArray(collection) ? arrayEach : baseEach;
+      return func(collection, getIteratee(iteratee, 3));
+    }
+
+    /**
+     * This method is like `_.forEach` except that it iterates over elements of
+     * `collection` from right to left.
+     *
+     * @static
+     * @memberOf _
+     * @since 2.0.0
+     * @alias eachRight
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function} [iteratee=_.identity] The function invoked per iteration.
+     * @returns {Array|Object} Returns `collection`.
+     * @see _.forEach
+     * @example
+     *
+     * _.forEachRight([1, 2], function(value) {
+     *   console.log(value);
+     * });
+     * // => Logs `2` then `1`.
+     */
+    function forEachRight(collection, iteratee) {
+      var func = isArray(collection) ? arrayEachRight : baseEachRight;
+      return func(collection, getIteratee(iteratee, 3));
+    }
+
+    /**
+     * Creates an object composed of keys generated from the results of running
+     * each element of `collection` thru `iteratee`. The order of grouped values
+     * is determined by the order they occur in `collection`. The corresponding
+     * value of each key is an array of elements responsible for generating the
+     * key. The iteratee is invoked with one argument: (value).
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The iteratee to transform keys.
+     * @returns {Object} Returns the composed aggregate object.
+     * @example
+     *
+     * _.groupBy([6.1, 4.2, 6.3], Math.floor);
+     * // => { '4': [4.2], '6': [6.1, 6.3] }
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.groupBy(['one', 'two', 'three'], 'length');
+     * // => { '3': ['one', 'two'], '5': ['three'] }
+     */
+    var groupBy = createAggregator(function(result, value, key) {
+      if (hasOwnProperty.call(result, key)) {
+        result[key].push(value);
+      } else {
+        result[key] = [value];
+      }
+    });
+
+    /**
+     * Checks if `value` is in `collection`. If `collection` is a string, it's
+     * checked for a substring of `value`, otherwise
+     * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
+     * is used for equality comparisons. If `fromIndex` is negative, it's used as
+     * the offset from the end of `collection`.
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object|string} collection The collection to search.
+     * @param {*} value The value to search for.
+     * @param {number} [fromIndex=0] The index to search from.
+     * @param- {Object} [guard] Enables use as an iteratee for methods like `_.reduce`.
+     * @returns {boolean} Returns `true` if `value` is found, else `false`.
+     * @example
+     *
+     * _.includes([1, 2, 3], 1);
+     * // => true
+     *
+     * _.includes([1, 2, 3], 1, 2);
+     * // => false
+     *
+     * _.includes({ 'user': 'fred', 'age': 40 }, 'fred');
+     * // => true
+     *
+     * _.includes('pebbles', 'eb');
+     * // => true
+     */
+    function includes(collection, value, fromIndex, guard) {
+      collection = isArrayLike(collection) ? collection : values(collection);
+      fromIndex = (fromIndex && !guard) ? toInteger(fromIndex) : 0;
+
+      var length = collection.length;
+      if (fromIndex < 0) {
+        fromIndex = nativeMax(length + fromIndex, 0);
+      }
+      return isString(collection)
+        ? (fromIndex <= length && collection.indexOf(value, fromIndex) > -1)
+        : (!!length && baseIndexOf(collection, value, fromIndex) > -1);
+    }
+
+    /**
+     * Invokes the method at `path` of each element in `collection`, returning
+     * an array of the results of each invoked method. Any additional arguments
+     * are provided to each invoked method. If `methodName` is a function, it's
+     * invoked for and `this` bound to, each element in `collection`.
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|string} path The path of the method to invoke or
+     *  the function invoked per iteration.
+     * @param {...*} [args] The arguments to invoke each method with.
+     * @returns {Array} Returns the array of results.
+     * @example
+     *
+     * _.invokeMap([[5, 1, 7], [3, 2, 1]], 'sort');
+     * // => [[1, 5, 7], [1, 2, 3]]
+     *
+     * _.invokeMap([123, 456], String.prototype.split, '');
+     * // => [['1', '2', '3'], ['4', '5', '6']]
+     */
+    var invokeMap = rest(function(collection, path, args) {
+      var index = -1,
+          isFunc = typeof path == 'function',
+          isProp = isKey(path),
+          result = isArrayLike(collection) ? Array(collection.length) : [];
+
+      baseEach(collection, function(value) {
+        var func = isFunc ? path : ((isProp && value != null) ? value[path] : undefined);
+        result[++index] = func ? apply(func, value, args) : baseInvoke(value, path, args);
+      });
+      return result;
+    });
+
+    /**
+     * Creates an object composed of keys generated from the results of running
+     * each element of `collection` thru `iteratee`. The corresponding value of
+     * each key is the last element responsible for generating the key. The
+     * iteratee is invoked with one argument: (value).
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The iteratee to transform keys.
+     * @returns {Object} Returns the composed aggregate object.
+     * @example
+     *
+     * var array = [
+     *   { 'dir': 'left', 'code': 97 },
+     *   { 'dir': 'right', 'code': 100 }
+     * ];
+     *
+     * _.keyBy(array, function(o) {
+     *   return String.fromCharCode(o.code);
+     * });
+     * // => { 'a': { 'dir': 'left', 'code': 97 }, 'd': { 'dir': 'right', 'code': 100 } }
+     *
+     * _.keyBy(array, 'dir');
+     * // => { 'left': { 'dir': 'left', 'code': 97 }, 'right': { 'dir': 'right', 'code': 100 } }
+     */
+    var keyBy = createAggregator(function(result, value, key) {
+      result[key] = value;
+    });
+
+    /**
+     * Creates an array of values by running each element in `collection` thru
+     * `iteratee`. The iteratee is invoked with three arguments:
+     * (value, index|key, collection).
+     *
+     * Many lodash methods are guarded to work as iteratees for methods like
+     * `_.every`, `_.filter`, `_.map`, `_.mapValues`, `_.reject`, and `_.some`.
+     *
+     * The guarded methods are:
+     * `ary`, `chunk`, `curry`, `curryRight`, `drop`, `dropRight`, `every`,
+     * `fill`, `invert`, `parseInt`, `random`, `range`, `rangeRight`, `repeat`,
+     * `sampleSize`, `slice`, `some`, `sortBy`, `split`, `take`, `takeRight`,
+     * `template`, `trim`, `trimEnd`, `trimStart`, and `words`
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [iteratee=_.identity]
+     *  The function invoked per iteration.
+     * @returns {Array} Returns the new mapped array.
+     * @example
+     *
+     * function square(n) {
+     *   return n * n;
+     * }
+     *
+     * _.map([4, 8], square);
+     * // => [16, 64]
+     *
+     * _.map({ 'a': 4, 'b': 8 }, square);
+     * // => [16, 64] (iteration order is not guaranteed)
+     *
+     * var users = [
+     *   { 'user': 'barney' },
+     *   { 'user': 'fred' }
+     * ];
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.map(users, 'user');
+     * // => ['barney', 'fred']
+     */
+    function map(collection, iteratee) {
+      var func = isArray(collection) ? arrayMap : baseMap;
+      return func(collection, getIteratee(iteratee, 3));
+    }
+
+    /**
+     * This method is like `_.sortBy` except that it allows specifying the sort
+     * orders of the iteratees to sort by. If `orders` is unspecified, all values
+     * are sorted in ascending order. Otherwise, specify an order of "desc" for
+     * descending or "asc" for ascending sort order of corresponding values.
+     *
+     * @static
+     * @memberOf _
+     * @since 4.0.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array[]|Function[]|Object[]|string[]} [iteratees=[_.identity]]
+     *  The iteratees to sort by.
+     * @param {string[]} [orders] The sort orders of `iteratees`.
+     * @param- {Object} [guard] Enables use as an iteratee for methods like `_.reduce`.
+     * @returns {Array} Returns the new sorted array.
+     * @example
+     *
+     * var users = [
+     *   { 'user': 'fred',   'age': 48 },
+     *   { 'user': 'barney', 'age': 34 },
+     *   { 'user': 'fred',   'age': 40 },
+     *   { 'user': 'barney', 'age': 36 }
+     * ];
+     *
+     * // Sort by `user` in ascending order and by `age` in descending order.
+     * _.orderBy(users, ['user', 'age'], ['asc', 'desc']);
+     * // => objects for [['barney', 36], ['barney', 34], ['fred', 48], ['fred', 40]]
+     */
+    function orderBy(collection, iteratees, orders, guard) {
+      if (collection == null) {
+        return [];
+      }
+      if (!isArray(iteratees)) {
+        iteratees = iteratees == null ? [] : [iteratees];
+      }
+      orders = guard ? undefined : orders;
+      if (!isArray(orders)) {
+        orders = orders == null ? [] : [orders];
+      }
+      return baseOrderBy(collection, iteratees, orders);
+    }
+
+    /**
+     * Creates an array of elements split into two groups, the first of which
+     * contains elements `predicate` returns truthy for, the second of which
+     * contains elements `predicate` returns falsey for. The predicate is
+     * invoked with one argument: (value).
+     *
+     * @static
+     * @memberOf _
+     * @since 3.0.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [predicate=_.identity]
+     *  The function invoked per iteration.
+     * @returns {Array} Returns the array of grouped elements.
+     * @example
+     *
+     * var users = [
+     *   { 'user': 'barney',  'age': 36, 'active': false },
+     *   { 'user': 'fred',    'age': 40, 'active': true },
+     *   { 'user': 'pebbles', 'age': 1,  'active': false }
+     * ];
+     *
+     * _.partition(users, function(o) { return o.active; });
+     * // => objects for [['fred'], ['barney', 'pebbles']]
+     *
+     * // The `_.matches` iteratee shorthand.
+     * _.partition(users, { 'age': 1, 'active': false });
+     * // => objects for [['pebbles'], ['barney', 'fred']]
+     *
+     * // The `_.matchesProperty` iteratee shorthand.
+     * _.partition(users, ['active', false]);
+     * // => objects for [['barney', 'pebbles'], ['fred']]
+     *
+     * // The `_.property` iteratee shorthand.
+     * _.partition(users, 'active');
+     * // => objects for [['fred'], ['barney', 'pebbles']]
+     */
+    var partition = createAggregator(function(result, value, key) {
+      result[key ? 0 : 1].push(value);
+    }, function() { return [[], []]; });
+
+    /**
+     * Reduces `collection` to a value which is the accumulated result of running
+     * each element in `collection` thru `iteratee`, where each successive
+     * invocation is supplied the return value of the previous. If `accumulator`
+     * is not given, the first element of `collection` is used as the initial
+     * value. The iteratee is invoked with four arguments:
+     * (accumulator, value, index|key, collection).
+     *
+     * Many lodash methods are guarded to work as iteratees for methods like
+     * `_.reduce`, `_.reduceRight`, and `_.transform`.
+     *
+     * The guarded methods are:
+     * `assign`, `defaults`, `defaultsDeep`, `includes`, `merge`, `orderBy`,
+     * and `sortBy`
+     *
+     * @static
+     * @memberOf _
+     * @since 0.1.0
+     * @category Collection
+     * @param {Array|Object} collection The collection to iterate over.
+     * @param {Function} [iteratee=_.identity] The function invoked per iteration.
+     * @param {*} [accumulator] The initial value.
+     * @returns {*} Returns the accumulated value.
+     * @see _.reduceRight
+     * @example
+     *
