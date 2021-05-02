@@ -56776,3 +56776,1288 @@ var parser = (function () {
             // When called from action, caches matched text and appends it on next action
             more: function more() {
                 this._more = true;
+                return this;
+            },
+
+            // When called from action, signals the lexer that this rule fails to match the input, so the next matching rule (regex) should be tested instead.
+            reject: function reject() {
+                if (this.options.backtrack_lexer) {
+                    this._backtrack = true;
+                } else {
+                    return this.parseError('Lexical error on line ' + (this.yylineno + 1) + '. You can only invoke reject() in the lexer when the lexer is of the backtracking persuasion (options.backtrack_lexer = true).\n' + this.showPosition(), {
+                        text: "",
+                        token: null,
+                        line: this.yylineno
+                    });
+                }
+                return this;
+            },
+
+            // retain first n characters of the match
+            less: function less(n) {
+                this.unput(this.match.slice(n));
+            },
+
+            // displays already matched input, i.e. for error messages
+            pastInput: function pastInput() {
+                var past = this.matched.substr(0, this.matched.length - this.match.length);
+                return (past.length > 20 ? '...' : '') + past.substr(-20).replace(/\n/g, "");
+            },
+
+            // displays upcoming input, i.e. for error messages
+            upcomingInput: function upcomingInput() {
+                var next = this.match;
+                if (next.length < 20) {
+                    next += this._input.substr(0, 20 - next.length);
+                }
+                return (next.substr(0, 20) + (next.length > 20 ? '...' : '')).replace(/\n/g, "");
+            },
+
+            // displays the character position where the lexing error occurred, i.e. for error messages
+            showPosition: function showPosition() {
+                var pre = this.pastInput();
+                var c = new Array(pre.length + 1).join("-");
+                return pre + this.upcomingInput() + "\n" + c + "^";
+            },
+
+            // test the lexed token: return FALSE when not a match, otherwise return token
+            test_match: function test_match(match, indexed_rule) {
+                var token, lines, backup;
+
+                if (this.options.backtrack_lexer) {
+                    // save context
+                    backup = {
+                        yylineno: this.yylineno,
+                        yylloc: {
+                            first_line: this.yylloc.first_line,
+                            last_line: this.last_line,
+                            first_column: this.yylloc.first_column,
+                            last_column: this.yylloc.last_column
+                        },
+                        yytext: this.yytext,
+                        match: this.match,
+                        matches: this.matches,
+                        matched: this.matched,
+                        yyleng: this.yyleng,
+                        offset: this.offset,
+                        _more: this._more,
+                        _input: this._input,
+                        yy: this.yy,
+                        conditionStack: this.conditionStack.slice(0),
+                        done: this.done
+                    };
+                    if (this.options.ranges) {
+                        backup.yylloc.range = this.yylloc.range.slice(0);
+                    }
+                }
+
+                lines = match[0].match(/(?:\r\n?|\n).*/g);
+                if (lines) {
+                    this.yylineno += lines.length;
+                }
+                this.yylloc = {
+                    first_line: this.yylloc.last_line,
+                    last_line: this.yylineno + 1,
+                    first_column: this.yylloc.last_column,
+                    last_column: lines ? lines[lines.length - 1].length - lines[lines.length - 1].match(/\r?\n?/)[0].length : this.yylloc.last_column + match[0].length
+                };
+                this.yytext += match[0];
+                this.match += match[0];
+                this.matches = match;
+                this.yyleng = this.yytext.length;
+                if (this.options.ranges) {
+                    this.yylloc.range = [this.offset, this.offset += this.yyleng];
+                }
+                this._more = false;
+                this._backtrack = false;
+                this._input = this._input.slice(match[0].length);
+                this.matched += match[0];
+                token = this.performAction.call(this, this.yy, this, indexed_rule, this.conditionStack[this.conditionStack.length - 1]);
+                if (this.done && this._input) {
+                    this.done = false;
+                }
+                if (token) {
+                    return token;
+                } else if (this._backtrack) {
+                    // recover context
+                    for (var k in backup) {
+                        this[k] = backup[k];
+                    }
+                    return false; // rule action called reject() implying the next rule should be tested instead.
+                }
+                return false;
+            },
+
+            // return next match in input
+            next: function next() {
+                if (this.done) {
+                    return this.EOF;
+                }
+                if (!this._input) {
+                    this.done = true;
+                }
+
+                var token, match, tempMatch, index;
+                if (!this._more) {
+                    this.yytext = '';
+                    this.match = '';
+                }
+                var rules = this._currentRules();
+                for (var i = 0; i < rules.length; i++) {
+                    tempMatch = this._input.match(this.rules[rules[i]]);
+                    if (tempMatch && (!match || tempMatch[0].length > match[0].length)) {
+                        match = tempMatch;
+                        index = i;
+                        if (this.options.backtrack_lexer) {
+                            token = this.test_match(tempMatch, rules[i]);
+                            if (token !== false) {
+                                return token;
+                            } else if (this._backtrack) {
+                                match = false;
+                                continue; // rule action called reject() implying a rule MISmatch.
+                            } else {
+                                    // else: this is a lexer rule which consumes input without producing a token (e.g. whitespace)
+                                    return false;
+                                }
+                        } else if (!this.options.flex) {
+                            break;
+                        }
+                    }
+                }
+                if (match) {
+                    token = this.test_match(match, rules[index]);
+                    if (token !== false) {
+                        return token;
+                    }
+                    // else: this is a lexer rule which consumes input without producing a token (e.g. whitespace)
+                    return false;
+                }
+                if (this._input === "") {
+                    return this.EOF;
+                } else {
+                    return this.parseError('Lexical error on line ' + (this.yylineno + 1) + '. Unrecognized text.\n' + this.showPosition(), {
+                        text: "",
+                        token: null,
+                        line: this.yylineno
+                    });
+                }
+            },
+
+            // return next match that has a token
+            lex: function lex() {
+                var r = this.next();
+                if (r) {
+                    return r;
+                } else {
+                    return this.lex();
+                }
+            },
+
+            // activates a new lexer condition state (pushes the new lexer condition state onto the condition stack)
+            begin: function begin(condition) {
+                this.conditionStack.push(condition);
+            },
+
+            // pop the previously active lexer condition state off the condition stack
+            popState: function popState() {
+                var n = this.conditionStack.length - 1;
+                if (n > 0) {
+                    return this.conditionStack.pop();
+                } else {
+                    return this.conditionStack[0];
+                }
+            },
+
+            // produce the lexer rule set which is active for the currently active lexer condition state
+            _currentRules: function _currentRules() {
+                if (this.conditionStack.length && this.conditionStack[this.conditionStack.length - 1]) {
+                    return this.conditions[this.conditionStack[this.conditionStack.length - 1]].rules;
+                } else {
+                    return this.conditions["INITIAL"].rules;
+                }
+            },
+
+            // return the currently active lexer condition state; when an index argument is provided it produces the N-th previous condition state, if available
+            topState: function topState(n) {
+                n = this.conditionStack.length - 1 - Math.abs(n || 0);
+                if (n >= 0) {
+                    return this.conditionStack[n];
+                } else {
+                    return "INITIAL";
+                }
+            },
+
+            // alias for begin(condition)
+            pushState: function pushState(condition) {
+                this.begin(condition);
+            },
+
+            // return the number of states currently on the stack
+            stateStackSize: function stateStackSize() {
+                return this.conditionStack.length;
+            },
+            options: { "case-insensitive": true },
+            performAction: function anonymous(yy, yy_, $avoiding_name_collisions, YY_START) {
+                var YYSTATE = YY_START;
+                switch ($avoiding_name_collisions) {
+                    case 0:
+                        return 5;
+                        break;
+                    case 1:
+                        /* skip all whitespace */
+                        break;
+                    case 2:
+                        /* skip same-line whitespace */
+                        break;
+                    case 3:
+                        /* skip comments */
+                        break;
+                    case 4:
+                        /* skip comments */
+                        break;
+                    case 5:
+                        this.begin('ID');return 10;
+                        break;
+                    case 6:
+                        this.begin('ALIAS');return 36;
+                        break;
+                    case 7:
+                        this.popState();this.popState();this.begin('LINE');return 12;
+                        break;
+                    case 8:
+                        this.popState();this.popState();return 5;
+                        break;
+                    case 9:
+                        this.begin('LINE');return 20;
+                        break;
+                    case 10:
+                        this.begin('LINE');return 22;
+                        break;
+                    case 11:
+                        this.begin('LINE');return 23;
+                        break;
+                    case 12:
+                        this.begin('LINE');return 24;
+                        break;
+                    case 13:
+                        this.popState();return 13;
+                        break;
+                    case 14:
+                        return 21;
+                        break;
+                    case 15:
+                        return 31;
+                        break;
+                    case 16:
+                        return 32;
+                        break;
+                    case 17:
+                        return 27;
+                        break;
+                    case 18:
+                        return 25;
+                        break;
+                    case 19:
+                        this.begin('ID');return 15;
+                        break;
+                    case 20:
+                        this.begin('ID');return 16;
+                        break;
+                    case 21:
+                        return 18;
+                        break;
+                    case 22:
+                        return 6;
+                        break;
+                    case 23:
+                        return 30;
+                        break;
+                    case 24:
+                        return 5;
+                        break;
+                    case 25:
+                        yy_.yytext = yy_.yytext.trim();return 36;
+                        break;
+                    case 26:
+                        return 39;
+                        break;
+                    case 27:
+                        return 40;
+                        break;
+                    case 28:
+                        return 37;
+                        break;
+                    case 29:
+                        return 38;
+                        break;
+                    case 30:
+                        return 41;
+                        break;
+                    case 31:
+                        return 42;
+                        break;
+                    case 32:
+                        return 43;
+                        break;
+                    case 33:
+                        return 34;
+                        break;
+                    case 34:
+                        return 35;
+                        break;
+                    case 35:
+                        return 5;
+                        break;
+                    case 36:
+                        return 'INVALID';
+                        break;
+                }
+            },
+            rules: [/^(?:[\n]+)/i, /^(?:\s+)/i, /^(?:((?!\n)\s)+)/i, /^(?:#[^\n]*)/i, /^(?:%[^\n]*)/i, /^(?:participant\b)/i, /^(?:[^\->:\n,;]+?(?=((?!\n)\s)+as(?!\n)\s|[#\n;]|$))/i, /^(?:as\b)/i, /^(?:(?:))/i, /^(?:loop\b)/i, /^(?:opt\b)/i, /^(?:alt\b)/i, /^(?:else\b)/i, /^(?:[^#\n;]*)/i, /^(?:end\b)/i, /^(?:left of\b)/i, /^(?:right of\b)/i, /^(?:over\b)/i, /^(?:note\b)/i, /^(?:activate\b)/i, /^(?:deactivate\b)/i, /^(?:title\b)/i, /^(?:sequenceDiagram\b)/i, /^(?:,)/i, /^(?:;)/i, /^(?:[^\+\->:\n,;]+)/i, /^(?:->>)/i, /^(?:-->>)/i, /^(?:->)/i, /^(?:-->)/i, /^(?:-[x])/i, /^(?:--[x])/i, /^(?::[^#\n;]+)/i, /^(?:\+)/i, /^(?:-)/i, /^(?:$)/i, /^(?:.)/i],
+            conditions: { "LINE": { "rules": [2, 3, 13], "inclusive": false }, "ALIAS": { "rules": [2, 3, 7, 8], "inclusive": false }, "ID": { "rules": [2, 3, 6], "inclusive": false }, "INITIAL": { "rules": [0, 1, 3, 4, 5, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36], "inclusive": true } }
+        };
+        return lexer;
+    })();
+    parser.lexer = lexer;
+    function Parser() {
+        this.yy = {};
+    }
+    Parser.prototype = parser;parser.Parser = Parser;
+    return new Parser();
+})();
+
+if (typeof require !== 'undefined' && typeof exports !== 'undefined') {
+    exports.parser = parser;
+    exports.Parser = parser.Parser;
+    exports.parse = function () {
+        return parser.parse.apply(parser, arguments);
+    };
+    exports.main = function commonjsMain(args) {
+        if (!args[1]) {
+            console.log('Usage: ' + args[0] + ' FILE');
+            process.exit(1);
+        }
+        var source = require('fs').readFileSync(require('path').normalize(args[1]), "utf8");
+        return exports.parser.parse(source);
+    };
+    if (typeof module !== 'undefined' && require.main === module) {
+        exports.main(process.argv.slice(1));
+    }
+}
+
+}).call(this,require('_process'))
+},{"_process":107,"fs":1,"path":106}],128:[function(require,module,exports){
+(function (global){
+/**
+ * Created by knut on 14-11-19.
+ */
+'use strict';
+
+var actors = {};
+var messages = [];
+var notes = [];
+var title = '';
+var Logger = require('../../logger');
+var log = new Logger.Log();
+
+exports.addActor = function (id, name, description) {
+    // Don't allow description nulling
+    var old = actors[id];
+    if (old && name === old.name && description == null) return;
+
+    // Don't allow null descriptions, either
+    if (description == null) description = name;
+
+    actors[id] = { name: name, description: description };
+};
+
+exports.addMessage = function (idFrom, idTo, message, answer) {
+    messages.push({ from: idFrom, to: idTo, message: message, answer: answer });
+};
+
+/**
+ *
+ */
+exports.addSignal = function (idFrom, idTo, message, messageType) {
+    log.debug('Adding message from=' + idFrom + ' to=' + idTo + ' message=' + message + ' type=' + messageType);
+    messages.push({ from: idFrom, to: idTo, message: message, type: messageType });
+};
+
+exports.getMessages = function () {
+    return messages;
+};
+
+exports.getActors = function () {
+    return actors;
+};
+exports.getActor = function (id) {
+    return actors[id];
+};
+exports.getActorKeys = function () {
+    return Object.keys(actors);
+};
+exports.getTitle = function () {
+    return title;
+};
+
+exports.clear = function () {
+    actors = {};
+    messages = [];
+};
+
+exports.LINETYPE = {
+    SOLID: 0,
+    DOTTED: 1,
+    NOTE: 2,
+    SOLID_CROSS: 3,
+    DOTTED_CROSS: 4,
+    SOLID_OPEN: 5,
+    DOTTED_OPEN: 6,
+    LOOP_START: 10,
+    LOOP_END: 11,
+    ALT_START: 12,
+    ALT_ELSE: 13,
+    ALT_END: 14,
+    OPT_START: 15,
+    OPT_END: 16,
+    ACTIVE_START: 17,
+    ACTIVE_END: 18
+};
+
+exports.ARROWTYPE = {
+    FILLED: 0,
+    OPEN: 1
+};
+
+exports.PLACEMENT = {
+    LEFTOF: 0,
+    RIGHTOF: 1,
+    OVER: 2
+};
+
+exports.addNote = function (actor, placement, message) {
+    var note = { actor: actor, placement: placement, message: message };
+
+    // Coerce actor into a [to, from, ...] array
+    var actors = [].concat(actor, actor);
+
+    notes.push(note);
+    messages.push({ from: actors[0], to: actors[1], message: message, type: exports.LINETYPE.NOTE, placement: placement });
+};
+
+exports.setTitle = function (titleText) {
+    title = titleText;
+};
+
+exports.parseError = function (err, hash) {
+    global.mermaidAPI.parseError(err, hash);
+};
+
+exports.apply = function (param) {
+    if (param instanceof Array) {
+        param.forEach(function (item) {
+            exports.apply(item);
+        });
+    } else {
+        // console.info(param);
+        switch (param.type) {
+            case 'addActor':
+                exports.addActor(param.actor, param.actor, param.description);
+                break;
+            case 'activeStart':
+                exports.addSignal(param.actor, undefined, undefined, param.signalType);
+                break;
+            case 'activeEnd':
+                exports.addSignal(param.actor, undefined, undefined, param.signalType);
+                break;
+            case 'addNote':
+                exports.addNote(param.actor, param.placement, param.text);
+                break;
+            case 'addMessage':
+                exports.addSignal(param.from, param.to, param.msg, param.signalType);
+                break;
+            case 'loopStart':
+                //log.debug('Loop text: ',param.loopText);
+                exports.addSignal(undefined, undefined, param.loopText, param.signalType);
+                //yy.addSignal(undefined, undefined, $2, yy.LINETYPE.LOOP_START);
+                break;
+            case 'loopEnd':
+                exports.addSignal(undefined, undefined, undefined, param.signalType);
+                break;
+            case 'optStart':
+                //log.debug('Loop text: ',param.loopText);
+                exports.addSignal(undefined, undefined, param.optText, param.signalType);
+                //yy.addSignal(undefined, undefined, $2, yy.LINETYPE.LOOP_START);
+                break;
+            case 'optEnd':
+                exports.addSignal(undefined, undefined, undefined, param.signalType);
+                break;
+            case 'altStart':
+                //log.debug('Loop text: ',param.loopText);
+                exports.addSignal(undefined, undefined, param.altText, param.signalType);
+                //yy.addSignal(undefined, undefined, $2, yy.LINETYPE.LOOP_START);
+                break;
+            case 'else':
+                exports.addSignal(undefined, undefined, param.altText, param.signalType);
+                break;
+            case 'altEnd':
+                exports.addSignal(undefined, undefined, undefined, param.signalType);
+                break;
+            case 'setTitle':
+                exports.setTitle(param.text);
+        }
+    }
+};
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"../../logger":131}],129:[function(require,module,exports){
+/**
+ * Created by knut on 14-11-23.
+ */
+
+'use strict';
+
+var sq = require('./parser/sequenceDiagram').parser;
+sq.yy = require('./sequenceDb');
+var svgDraw = require('./svgDraw');
+var d3 = require('../../d3');
+var Logger = require('../../logger');
+var log = new Logger.Log();
+
+var conf = {
+
+    diagramMarginX: 50,
+    diagramMarginY: 30,
+    // Margin between actors
+    actorMargin: 50,
+    // Width of actor boxes
+    width: 150,
+    // Height of actor boxes
+    height: 65,
+    // Margin around loop boxes
+    boxMargin: 10,
+    boxTextMargin: 5,
+    noteMargin: 10,
+    // Space between messages
+    messageMargin: 35,
+    //mirror actors under diagram
+    mirrorActors: false,
+    // Depending on css styling this might need adjustment
+    // Prolongs the edge of the diagram downwards
+    bottomMarginAdj: 1,
+
+    // width of activation box
+    activationWidth: 10,
+
+    //text placement as: tspan | fo | old only text as before
+    textPlacement: 'tspan'
+};
+
+exports.bounds = {
+    data: {
+        startx: undefined,
+        stopx: undefined,
+        starty: undefined,
+        stopy: undefined
+    },
+    verticalPos: 0,
+
+    sequenceItems: [],
+    activations: [],
+    init: function init() {
+        this.sequenceItems = [];
+        this.activations = [];
+        this.data = {
+            startx: undefined,
+            stopx: undefined,
+            starty: undefined,
+            stopy: undefined
+        };
+        this.verticalPos = 0;
+    },
+    updateVal: function updateVal(obj, key, val, fun) {
+        if (typeof obj[key] === 'undefined') {
+            obj[key] = val;
+        } else {
+            obj[key] = fun(val, obj[key]);
+        }
+    },
+    updateBounds: function updateBounds(startx, starty, stopx, stopy) {
+        var _self = this;
+        var cnt = 0;
+        function updateFn(type) {
+            return function updateItemBounds(item) {
+                cnt++;
+                // The loop sequenceItems is a stack so the biggest margins in the beginning of the sequenceItems
+                var n = _self.sequenceItems.length - cnt + 1;
+
+                _self.updateVal(item, 'starty', starty - n * conf.boxMargin, Math.min);
+                _self.updateVal(item, 'stopy', stopy + n * conf.boxMargin, Math.max);
+
+                _self.updateVal(exports.bounds.data, 'startx', startx - n * conf.boxMargin, Math.min);
+                _self.updateVal(exports.bounds.data, 'stopx', stopx + n * conf.boxMargin, Math.max);
+
+                if (!(type == 'activation')) {
+                    _self.updateVal(item, 'startx', startx - n * conf.boxMargin, Math.min);
+                    _self.updateVal(item, 'stopx', stopx + n * conf.boxMargin, Math.max);
+
+                    _self.updateVal(exports.bounds.data, 'starty', starty - n * conf.boxMargin, Math.min);
+                    _self.updateVal(exports.bounds.data, 'stopy', stopy + n * conf.boxMargin, Math.max);
+                }
+            };
+        }
+
+        this.sequenceItems.forEach(updateFn());
+        this.activations.forEach(updateFn('activation'));
+    },
+    insert: function insert(startx, starty, stopx, stopy) {
+
+        var _startx, _starty, _stopx, _stopy;
+
+        _startx = Math.min(startx, stopx);
+        _stopx = Math.max(startx, stopx);
+        _starty = Math.min(starty, stopy);
+        _stopy = Math.max(starty, stopy);
+
+        this.updateVal(exports.bounds.data, 'startx', _startx, Math.min);
+        this.updateVal(exports.bounds.data, 'starty', _starty, Math.min);
+        this.updateVal(exports.bounds.data, 'stopx', _stopx, Math.max);
+        this.updateVal(exports.bounds.data, 'stopy', _stopy, Math.max);
+
+        this.updateBounds(_startx, _starty, _stopx, _stopy);
+    },
+    newActivation: function newActivation(message, diagram) {
+        var actorRect = sq.yy.getActors()[message.from.actor];
+        var stackedSize = actorActivations(message.from.actor).length;
+        var x = actorRect.x + conf.width / 2 + (stackedSize - 1) * conf.activationWidth / 2;
+        this.activations.push({ startx: x, starty: this.verticalPos + 2, stopx: x + conf.activationWidth, stopy: undefined,
+            actor: message.from.actor,
+            anchored: svgDraw.anchorElement(diagram)
+        });
+    },
+    endActivation: function endActivation(message) {
+        // find most recent activation for given actor
+        var lastActorActivationIdx = this.activations.map(function (activation) {
+            return activation.actor;
+        }).lastIndexOf(message.from.actor);
+        var activation = this.activations.splice(lastActorActivationIdx, 1)[0];
+        return activation;
+    },
+    newLoop: function newLoop(title) {
+        this.sequenceItems.push({ startx: undefined, starty: this.verticalPos, stopx: undefined, stopy: undefined, title: title });
+    },
+    endLoop: function endLoop() {
+        var loop = this.sequenceItems.pop();
+        return loop;
+    },
+    addElseToLoop: function addElseToLoop(message) {
+        var loop = this.sequenceItems.pop();
+        loop.elsey = exports.bounds.getVerticalPos();
+        loop.elseText = message;
+        this.sequenceItems.push(loop);
+    },
+    bumpVerticalPos: function bumpVerticalPos(bump) {
+        this.verticalPos = this.verticalPos + bump;
+        this.data.stopy = this.verticalPos;
+    },
+    getVerticalPos: function getVerticalPos() {
+        return this.verticalPos;
+    },
+    getBounds: function getBounds() {
+        return this.data;
+    }
+};
+
+/**
+ * Draws an actor in the diagram with the attaced line
+ * @param center - The center of the the actor
+ * @param pos The position if the actor in the liost of actors
+ * @param description The text in the box
+ */
+var drawNote = function drawNote(elem, startx, verticalPos, msg, forceWidth) {
+    var rect = svgDraw.getNoteRect();
+    rect.x = startx;
+    rect.y = verticalPos;
+    rect.width = forceWidth || conf.width;
+    rect['class'] = 'note';
+
+    var g = elem.append('g');
+    var rectElem = svgDraw.drawRect(g, rect);
+
+    var textObj = svgDraw.getTextObj();
+    textObj.x = startx - 4;
+    textObj.y = verticalPos - 13;
+    textObj.textMargin = conf.noteMargin;
+    textObj.dy = '1em';
+    textObj.text = msg.message;
+    textObj['class'] = 'noteText';
+
+    var textElem = svgDraw.drawText(g, textObj, rect.width - conf.noteMargin);
+
+    var textHeight = textElem[0][0].getBBox().height;
+    if (!forceWidth && textHeight > conf.width) {
+        textElem.remove();
+        g = elem.append('g');
+
+        textElem = svgDraw.drawText(g, textObj, 2 * rect.width - conf.noteMargin);
+        textHeight = textElem[0][0].getBBox().height;
+        rectElem.attr('width', 2 * rect.width);
+        exports.bounds.insert(startx, verticalPos, startx + 2 * rect.width, verticalPos + 2 * conf.noteMargin + textHeight);
+    } else {
+        exports.bounds.insert(startx, verticalPos, startx + rect.width, verticalPos + 2 * conf.noteMargin + textHeight);
+    }
+
+    rectElem.attr('height', textHeight + 2 * conf.noteMargin);
+    exports.bounds.bumpVerticalPos(textHeight + 2 * conf.noteMargin);
+};
+
+/**
+ * Draws a message
+ * @param elem
+ * @param startx
+ * @param stopx
+ * @param verticalPos
+ * @param txtCenter
+ * @param msg
+ */
+var drawMessage = function drawMessage(elem, startx, stopx, verticalPos, msg) {
+    var g = elem.append('g');
+    var txtCenter = startx + (stopx - startx) / 2;
+
+    var textElem = g.append('text') // text label for the x axis
+    .attr('x', txtCenter).attr('y', verticalPos - 7).style('text-anchor', 'middle').attr('class', 'messageText').text(msg.message);
+
+    var textWidth;
+
+    if (typeof textElem[0][0].getBBox !== 'undefined') {
+        textWidth = textElem[0][0].getBBox().width;
+    } else {
+        //textWidth = getBBox(textElem).width; //.getComputedTextLength()
+        textWidth = textElem[0][0].getBoundingClientRect();
+        //textWidth = textElem[0][0].getComputedTextLength();
+    }
+
+    var line;
+
+    if (startx === stopx) {
+        line = g.append('path').attr('d', 'M ' + startx + ',' + verticalPos + ' C ' + (startx + 60) + ',' + (verticalPos - 10) + ' ' + (startx + 60) + ',' + (verticalPos + 30) + ' ' + startx + ',' + (verticalPos + 20));
+
+        exports.bounds.bumpVerticalPos(30);
+        var dx = Math.max(textWidth / 2, 100);
+        exports.bounds.insert(startx - dx, exports.bounds.getVerticalPos() - 10, stopx + dx, exports.bounds.getVerticalPos());
+    } else {
+        line = g.append('line');
+        line.attr('x1', startx);
+        line.attr('y1', verticalPos);
+        line.attr('x2', stopx);
+        line.attr('y2', verticalPos);
+        exports.bounds.insert(startx, exports.bounds.getVerticalPos() - 10, stopx, exports.bounds.getVerticalPos());
+    }
+    //Make an SVG Container
+    //Draw the line
+    if (msg.type === sq.yy.LINETYPE.DOTTED || msg.type === sq.yy.LINETYPE.DOTTED_CROSS || msg.type === sq.yy.LINETYPE.DOTTED_OPEN) {
+        line.style('stroke-dasharray', '3, 3');
+        line.attr('class', 'messageLine1');
+    } else {
+        line.attr('class', 'messageLine0');
+    }
+
+    var url = '';
+    if (conf.arrowMarkerAbsolute) {
+        url = window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search;
+        url = url.replace(/\(/g, '\\(');
+        url = url.replace(/\)/g, '\\)');
+    }
+
+    line.attr('stroke-width', 2);
+    line.attr('stroke', 'black');
+    line.style('fill', 'none'); // remove any fill colour
+    if (msg.type === sq.yy.LINETYPE.SOLID || msg.type === sq.yy.LINETYPE.DOTTED) {
+        line.attr('marker-end', 'url(' + url + '#arrowhead)');
+    }
+
+    if (msg.type === sq.yy.LINETYPE.SOLID_CROSS || msg.type === sq.yy.LINETYPE.DOTTED_CROSS) {
+        line.attr('marker-end', 'url(' + url + '#crosshead)');
+    }
+};
+
+module.exports.drawActors = function (diagram, actors, actorKeys, verticalPos) {
+    var i;
+    // Draw the actors
+    for (i = 0; i < actorKeys.length; i++) {
+        var key = actorKeys[i];
+
+        // Add some rendering data to the object
+        actors[key].x = i * conf.actorMargin + i * conf.width;
+        actors[key].y = verticalPos;
+        actors[key].width = conf.diagramMarginX;
+        actors[key].height = conf.diagramMarginY;
+
+        // Draw the box with the attached line
+        svgDraw.drawActor(diagram, actors[key].x, verticalPos, actors[key].description, conf);
+        exports.bounds.insert(actors[key].x, verticalPos, actors[key].x + conf.width, conf.height);
+    }
+
+    // Add a margin between the actor boxes and the first arrow
+    //exports.bounds.bumpVerticalPos(conf.height+conf.messageMargin);
+    exports.bounds.bumpVerticalPos(conf.height);
+};
+
+module.exports.setConf = function (cnf) {
+    var keys = Object.keys(cnf);
+
+    keys.forEach(function (key) {
+        conf[key] = cnf[key];
+    });
+};
+
+var actorActivations = function actorActivations(actor) {
+    return module.exports.bounds.activations.filter(function (activation) {
+        return activation.actor == actor;
+    });
+};
+
+var actorFlowVerticaBounds = function actorFlowVerticaBounds(actor) {
+    // handle multiple stacked activations for same actor
+    var actors = sq.yy.getActors();
+    var activations = actorActivations(actor);
+
+    var left = activations.reduce(function (acc, activation) {
+        return Math.min(acc, activation.startx);
+    }, actors[actor].x + conf.width / 2);
+    var right = activations.reduce(function (acc, activation) {
+        return Math.max(acc, activation.stopx);
+    }, actors[actor].x + conf.width / 2);
+    return [left, right];
+};
+
+/**
+ * Draws a flowchart in the tag with id: id based on the graph definition in text.
+ * @param text
+ * @param id
+ */
+module.exports.draw = function (text, id) {
+    sq.yy.clear();
+    sq.parse(text + '\n');
+
+    exports.bounds.init();
+    var diagram = d3.select('#' + id);
+
+    var startx;
+    var stopx;
+    var forceWidth;
+
+    // Fetch data from the parsing
+    var actors = sq.yy.getActors();
+    var actorKeys = sq.yy.getActorKeys();
+    var messages = sq.yy.getMessages();
+    var title = sq.yy.getTitle();
+    module.exports.drawActors(diagram, actors, actorKeys, 0);
+
+    // The arrow head definition is attached to the svg once
+    svgDraw.insertArrowHead(diagram);
+    svgDraw.insertArrowCrossHead(diagram);
+
+    function activeEnd(msg, verticalPos) {
+        var activationData = exports.bounds.endActivation(msg);
+        if (activationData.starty + 18 > verticalPos) {
+            activationData.starty = verticalPos - 6;
+            verticalPos += 12;
+        }
+        svgDraw.drawActivation(diagram, activationData, verticalPos, conf);
+
+        exports.bounds.insert(activationData.startx, verticalPos - 10, activationData.stopx, verticalPos);
+    }
+
+    var lastMsg;
+
+    // Draw the messages/signals
+    messages.forEach(function (msg) {
+        var loopData;
+
+        switch (msg.type) {
+            case sq.yy.LINETYPE.NOTE:
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+
+                startx = actors[msg.from].x;
+                stopx = actors[msg.to].x;
+
+                if (msg.placement === sq.yy.PLACEMENT.RIGHTOF) {
+                    drawNote(diagram, startx + (conf.width + conf.actorMargin) / 2, exports.bounds.getVerticalPos(), msg);
+                } else if (msg.placement === sq.yy.PLACEMENT.LEFTOF) {
+                    drawNote(diagram, startx - (conf.width + conf.actorMargin) / 2, exports.bounds.getVerticalPos(), msg);
+                } else if (msg.to === msg.from) {
+                    // Single-actor over
+                    drawNote(diagram, startx, exports.bounds.getVerticalPos(), msg);
+                } else {
+                    // Multi-actor over
+                    forceWidth = Math.abs(startx - stopx) + conf.actorMargin;
+                    drawNote(diagram, (startx + stopx + conf.width - forceWidth) / 2, exports.bounds.getVerticalPos(), msg, forceWidth);
+                }
+                break;
+            case sq.yy.LINETYPE.ACTIVE_START:
+                exports.bounds.newActivation(msg, diagram);
+                break;
+            case sq.yy.LINETYPE.ACTIVE_END:
+                activeEnd(msg, exports.bounds.getVerticalPos());
+                break;
+            case sq.yy.LINETYPE.LOOP_START:
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                exports.bounds.newLoop(msg.message);
+                exports.bounds.bumpVerticalPos(conf.boxMargin + conf.boxTextMargin);
+                break;
+            case sq.yy.LINETYPE.LOOP_END:
+                loopData = exports.bounds.endLoop();
+
+                svgDraw.drawLoop(diagram, loopData, 'loop', conf);
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                break;
+            case sq.yy.LINETYPE.OPT_START:
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                exports.bounds.newLoop(msg.message);
+                exports.bounds.bumpVerticalPos(conf.boxMargin + conf.boxTextMargin);
+                break;
+            case sq.yy.LINETYPE.OPT_END:
+                loopData = exports.bounds.endLoop();
+
+                svgDraw.drawLoop(diagram, loopData, 'opt', conf);
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                break;
+            case sq.yy.LINETYPE.ALT_START:
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                exports.bounds.newLoop(msg.message);
+                exports.bounds.bumpVerticalPos(conf.boxMargin + conf.boxTextMargin);
+                break;
+            case sq.yy.LINETYPE.ALT_ELSE:
+
+                //exports.drawLoop(diagram, loopData);
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                loopData = exports.bounds.addElseToLoop(msg.message);
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                break;
+            case sq.yy.LINETYPE.ALT_END:
+                loopData = exports.bounds.endLoop();
+
+                svgDraw.drawLoop(diagram, loopData, 'alt', conf);
+                exports.bounds.bumpVerticalPos(conf.boxMargin);
+                break;
+            default:
+                try {
+                    lastMsg = msg;
+                    exports.bounds.bumpVerticalPos(conf.messageMargin);
+                    var fromBounds = actorFlowVerticaBounds(msg.from);
+                    var toBounds = actorFlowVerticaBounds(msg.to);
+                    var fromIdx = fromBounds[0] <= toBounds[0] ? 1 : 0;
+                    var toIdx = fromBounds[0] < toBounds[0] ? 0 : 1;
+                    startx = fromBounds[fromIdx];
+                    stopx = toBounds[toIdx];
+
+                    var verticalPos = exports.bounds.getVerticalPos();
+                    drawMessage(diagram, startx, stopx, verticalPos, msg);
+                    var allBounds = fromBounds.concat(toBounds);
+                    exports.bounds.insert(Math.min.apply(null, allBounds), verticalPos, Math.max.apply(null, allBounds), verticalPos);
+                } catch (e) {
+                    console.error('error while drawing message', e);
+                }
+        }
+    });
+
+    if (conf.mirrorActors) {
+        // Draw actors below diagram
+        exports.bounds.bumpVerticalPos(conf.boxMargin * 2);
+        module.exports.drawActors(diagram, actors, actorKeys, exports.bounds.getVerticalPos());
+    }
+
+    var box = exports.bounds.getBounds();
+
+    // Adjust line height of actor lines now that the height of the diagram is known
+    log.debug('For line height fix Querying: #' + id + ' .actor-line');
+    var actorLines = d3.selectAll('#' + id + ' .actor-line');
+    actorLines.attr('y2', box.stopy);
+
+    var height = box.stopy - box.starty + 2 * conf.diagramMarginY;
+
+    if (conf.mirrorActors) {
+        height = height - conf.boxMargin + conf.bottomMarginAdj;
+    }
+
+    var width = box.stopx - box.startx + 2 * conf.diagramMarginX;
+
+    if (title) {
+        diagram.append('text').text(title).attr('x', (box.stopx - box.startx) / 2 - 2 * conf.diagramMarginX).attr('y', -25);
+    }
+
+    if (conf.useMaxWidth) {
+        diagram.attr('height', '100%');
+        diagram.attr('width', '100%');
+        diagram.attr('style', 'max-width:' + width + 'px;');
+    } else {
+        diagram.attr('height', height);
+        diagram.attr('width', width);
+    }
+    var extraVertForTitle = title ? 40 : 0;
+    diagram.attr('viewBox', box.startx - conf.diagramMarginX + ' -' + (conf.diagramMarginY + extraVertForTitle) + ' ' + width + ' ' + (height + extraVertForTitle));
+};
+
+},{"../../d3":109,"../../logger":131,"./parser/sequenceDiagram":127,"./sequenceDb":128,"./svgDraw":130}],130:[function(require,module,exports){
+/**
+ * Created by knut on 14-12-20.
+ */
+//var log = require('../../logger').create();
+'use strict';
+
+exports.drawRect = function (elem, rectData) {
+    var rectElem = elem.append('rect');
+    rectElem.attr('x', rectData.x);
+    rectElem.attr('y', rectData.y);
+    rectElem.attr('fill', rectData.fill);
+    rectElem.attr('stroke', rectData.stroke);
+    rectElem.attr('width', rectData.width);
+    rectElem.attr('height', rectData.height);
+    rectElem.attr('rx', rectData.rx);
+    rectElem.attr('ry', rectData.ry);
+
+    if (typeof rectData['class'] !== 'undefined') {
+        rectElem.attr('class', rectData['class']);
+    }
+
+    return rectElem;
+};
+
+exports.drawText = function (elem, textData, width) {
+    // Remove and ignore br:s
+    var nText = textData.text.replace(/<br\/?>/ig, ' ');
+
+    var textElem = elem.append('text');
+    textElem.attr('x', textData.x);
+    textElem.attr('y', textData.y);
+    textElem.style('text-anchor', textData.anchor);
+    textElem.attr('fill', textData.fill);
+    if (typeof textData['class'] !== 'undefined') {
+        textElem.attr('class', textData['class']);
+    }
+    /*    textData.text.split(/<br\/?>/ig).forEach(function(rowText){
+            var span = textElem.append('tspan');
+            span.attr('x', textData.x +textData.textMargin);
+            span.attr('dy', textData.dy);
+            span.text(rowText);
+        });*/
+
+    var span = textElem.append('tspan');
+    //span.attr('x', textData.x);
+    span.attr('x', textData.x + textData.textMargin * 2);
+    //span.attr('dy', textData.dy);
+    span.text(nText);
+    if (typeof textElem.textwrap !== 'undefined') {
+
+        textElem.textwrap({
+            x: textData.x, // bounding box is 300 pixels from the left
+            y: textData.y, // bounding box is 400 pixels from the top
+            width: width, // bounding box is 500 pixels across
+            height: 1800 // bounding box is 600 pixels tall
+        }, textData.textMargin);
+    }
+
+    return textElem;
+};
+
+exports.drawLabel = function (elem, txtObject) {
+    var rectData = exports.getNoteRect();
+    rectData.x = txtObject.x;
+    rectData.y = txtObject.y;
+    rectData.width = 50;
+    rectData.height = 20;
+    rectData.fill = '#526e52';
+    rectData.stroke = 'none';
+    rectData['class'] = 'labelBox';
+    //rectData.color = 'white';
+
+    exports.drawRect(elem, rectData);
+
+    txtObject.y = txtObject.y + txtObject.labelMargin;
+    txtObject.x = txtObject.x + 0.5 * txtObject.labelMargin;
+    txtObject.fill = 'white';
+    exports.drawText(elem, txtObject);
+
+    //return textElem;
+};
+var actorCnt = -1;
+/**
+ * Draws an actor in the diagram with the attaced line
+ * @param center - The center of the the actor
+ * @param pos The position if the actor in the liost of actors
+ * @param description The text in the box
+ */
+exports.drawActor = function (elem, left, verticalPos, description, conf) {
+    var center = left + conf.width / 2;
+    var g = elem.append('g');
+    if (verticalPos === 0) {
+        actorCnt++;
+        g.append('line').attr('id', 'actor' + actorCnt).attr('x1', center).attr('y1', 5).attr('x2', center).attr('y2', 2000).attr('class', 'actor-line').attr('stroke-width', '0.5px').attr('stroke', '#999');
+    }
+
+    var rect = exports.getNoteRect();
+    rect.x = left;
+    rect.y = verticalPos;
+    rect.fill = '#eaeaea';
+    rect.width = conf.width;
+    rect.height = conf.height;
+    rect['class'] = 'actor';
+    rect.rx = 3;
+    rect.ry = 3;
+    exports.drawRect(g, rect);
+
+    _drawTextCandidateFunc(conf)(description, g, rect.x, rect.y, rect.width, rect.height, { 'class': 'actor' });
+};
+
+exports.anchorElement = function (elem) {
+    return elem.append('g');
+};
+/**
+ * Draws an actor in the diagram with the attaced line
+ * @param elem - element to append activation rect
+ * @param bounds - activation box bounds
+ * @param verticalPos - precise y cooridnate of bottom activation box edge
+ */
+exports.drawActivation = function (elem, bounds, verticalPos) {
+    var rect = exports.getNoteRect();
+    var g = bounds.anchored;
+    rect.x = bounds.startx;
+    rect.y = bounds.starty;
+    rect.fill = '#f4f4f4';
+    rect.width = bounds.stopx - bounds.startx;
+    rect.height = verticalPos - bounds.starty;
+    exports.drawRect(g, rect);
+};
+
+/**
+ * Draws an actor in the diagram with the attaced line
+ * @param center - The center of the the actor
+ * @param pos The position if the actor in the list of actors
+ * @param description The text in the box
+ */
+exports.drawLoop = function (elem, bounds, labelText, conf) {
+    var g = elem.append('g');
+    var drawLoopLine = function drawLoopLine(startx, starty, stopx, stopy) {
+        g.append('line').attr('x1', startx).attr('y1', starty).attr('x2', stopx).attr('y2', stopy).attr('stroke-width', 2).attr('stroke', '#526e52').attr('class', 'loopLine');
+    };
+    drawLoopLine(bounds.startx, bounds.starty, bounds.stopx, bounds.starty);
+    drawLoopLine(bounds.stopx, bounds.starty, bounds.stopx, bounds.stopy);
+    drawLoopLine(bounds.startx, bounds.stopy, bounds.stopx, bounds.stopy);
+    drawLoopLine(bounds.startx, bounds.starty, bounds.startx, bounds.stopy);
+    if (typeof bounds.elsey !== 'undefined') {
+        drawLoopLine(bounds.startx, bounds.elsey, bounds.stopx, bounds.elsey);
+    }
+
+    var txt = exports.getTextObj();
+    txt.text = labelText;
+    txt.x = bounds.startx;
+    txt.y = bounds.starty;
+    txt.labelMargin = 1.5 * 10; // This is the small box that says "loop"
+    txt['class'] = 'labelText'; // Its size & position are fixed.
+    txt.fill = 'white';
+
+    exports.drawLabel(g, txt);
+
+    txt = exports.getTextObj();
+    txt.text = '[ ' + bounds.title + ' ]';
+    txt.x = bounds.startx + (bounds.stopx - bounds.startx) / 2;
+    txt.y = bounds.starty + 1.5 * conf.boxMargin;
+    txt.anchor = 'middle';
+    txt['class'] = 'loopText';
+
+    exports.drawText(g, txt);
+
+    if (typeof bounds.elseText !== 'undefined') {
+        txt.text = '[ ' + bounds.elseText + ' ]';
+        txt.y = bounds.elsey + 1.5 * conf.boxMargin;
+        exports.drawText(g, txt);
+    }
+};
+
+/**
+ * Setup arrow head and define the marker. The result is appended to the svg.
+ */
+exports.insertArrowHead = function (elem) {
+    elem.append('defs').append('marker').attr('id', 'arrowhead').attr('refX', 5).attr('refY', 2).attr('markerWidth', 6).attr('markerHeight', 4).attr('orient', 'auto').append('path').attr('d', 'M 0,0 V 4 L6,2 Z'); //this is actual shape for arrowhead
+};
+/**
+ * Setup arrow head and define the marker. The result is appended to the svg.
+ */
+exports.insertArrowCrossHead = function (elem) {
+    var defs = elem.append('defs');
+    var marker = defs.append('marker').attr('id', 'crosshead').attr('markerWidth', 15).attr('markerHeight', 8).attr('orient', 'auto').attr('refX', 16).attr('refY', 4);
+
+    // The arrow
+    marker.append('path').attr('fill', 'black').attr('stroke', '#000000').style('stroke-dasharray', '0, 0').attr('stroke-width', '1px').attr('d', 'M 9,2 V 6 L16,4 Z');
+
+    // The cross
+    marker.append('path').attr('fill', 'none').attr('stroke', '#000000').style('stroke-dasharray', '0, 0').attr('stroke-width', '1px').attr('d', 'M 0,1 L 6,7 M 6,1 L 0,7'); //this is actual shape for arrowhead
+};
+
+exports.getTextObj = function () {
+    var txt = {
+        x: 0,
+        y: 0,
+        'fill': 'black',
+        'text-anchor': 'start',
+        style: '#666',
+        width: 100,
+        height: 100,
+        textMargin: 0,
+        rx: 0,
+        ry: 0
+    };
+    return txt;
+};
+
+exports.getNoteRect = function () {
+    var rect = {
+        x: 0,
+        y: 0,
+        fill: '#EDF2AE',
+        stroke: '#666',
+        width: 100,
+        anchor: 'start',
+        height: 100,
+        rx: 0,
+        ry: 0
+    };
+    return rect;
+};
+
+var _drawTextCandidateFunc = (function () {
+    function byText(content, g, x, y, width, height, textAttrs) {
+        var text = g.append('text').attr('x', x + width / 2).attr('y', y + height / 2 + 5).style('text-anchor', 'middle').text(content);
+        _setTextAttrs(text, textAttrs);
+    }
+
+    function byTspan(content, g, x, y, width, height, textAttrs) {
+        var text = g.append('text').attr('x', x + width / 2).attr('y', y).style('text-anchor', 'middle');
+        text.append('tspan').attr('x', x + width / 2).attr('dy', '0').text(content);
+
+        if (typeof text.textwrap !== 'undefined') {
+            text.textwrap({ //d3textwrap
+                x: x + width / 2, y: y, width: width, height: height
+            }, 0);
+            //vertical aligment after d3textwrap expans tspan to multiple tspans
+            var tspans = text.selectAll('tspan');
+            if (tspans.length > 0 && tspans[0].length > 0) {
+                tspans = tspans[0];
+                //set y of <text> to the mid y of the first line
+                text.attr('y', y + (height / 2.0 - text[0][0].getBBox().height * (1 - 1.0 / tspans.length) / 2.0)).attr("dominant-baseline", "central").attr("alignment-baseline", "central");
+            }
+        }
+        _setTextAttrs(text, textAttrs);
+    }
+
+    function byFo(content, g, x, y, width, height, textAttrs) {
+        var s = g.append('switch');
+        var f = s.append("foreignObject").attr('x', x).attr('y', y).attr('width', width).attr('height', height);
+
+        var text = f.append('div').style('display', 'table').style('height', '100%').style('width', '100%');
+
+        text.append('div').style('display', 'table-cell').style('text-align', 'center').style('vertical-align', 'middle').text(content);
+
+        byTspan(content, s, x, y, width, height, textAttrs);
+        _setTextAttrs(text, textAttrs);
