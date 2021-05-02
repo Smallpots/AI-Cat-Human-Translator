@@ -58061,3 +58061,1099 @@ var _drawTextCandidateFunc = (function () {
 
         byTspan(content, s, x, y, width, height, textAttrs);
         _setTextAttrs(text, textAttrs);
+    }
+
+    function _setTextAttrs(toText, fromTextAttrsDict) {
+        for (var key in fromTextAttrsDict) {
+            if (fromTextAttrsDict.hasOwnProperty(key)) {
+                toText.attr(key, fromTextAttrsDict[key]);
+            }
+        }
+    }
+
+    return function (conf) {
+        return conf.textPlacement === 'fo' ? byFo : conf.textPlacement === 'old' ? byText : byTspan;
+    };
+})();
+
+},{}],131:[function(require,module,exports){
+/**
+ * #logger
+ * logger = require('logger').create()
+ * logger.info("blah")
+ * => [2011-3-3T20:24:4.810 info (5021)] blah
+ * logger.debug("boom")
+ * =>
+ * logger.level = Logger.levels.debug
+ * logger.debug(function() { return "booom" })
+ * => [2011-3-3T20:24:4.810 error (5021)] booom
+ */
+
+'use strict';
+
+var LEVELS = {
+    debug: 1,
+    info: 2,
+    warn: 3,
+    error: 4,
+    fatal: 5,
+    'default': 5
+};
+
+var defaultLevel = LEVELS.error;
+
+exports.setLogLevel = function (level) {
+    defaultLevel = level;
+};
+
+function formatTime(timestamp) {
+    var hh = timestamp.getUTCHours();
+    var mm = timestamp.getUTCMinutes();
+    var ss = timestamp.getSeconds();
+    var ms = timestamp.getMilliseconds();
+    // If you were building a timestamp instead of a duration, you would uncomment the following line to get 12-hour (not 24) time
+    // if (hh > 12) {hh = hh % 12;}
+    // These lines ensure you have two-digits
+    if (hh < 10) {
+        hh = '0' + hh;
+    }
+    if (mm < 10) {
+        mm = '0' + mm;
+    }
+    if (ss < 10) {
+        ss = '0' + ss;
+    }
+    if (ms < 100) {
+        ms = '0' + ms;
+    }
+    if (ms < 10) {
+        ms = '00' + ms;
+    }
+    // This formats your string to HH:MM:SS
+    var t = hh + ':' + mm + ':' + ss + ' (' + ms + ')';
+    return t;
+}
+
+function format(level) {
+    var time = formatTime(new Date());
+    return '%c ' + time + ' :%c' + level + ': ';
+}
+
+function Log(level) {
+    this.level = level;
+
+    this.log = function () {
+        var args = Array.prototype.slice.call(arguments);
+        var level = args.shift();
+        var logLevel = this.level;
+        if (typeof logLevel === 'undefined') {
+            logLevel = defaultLevel;
+        }
+        if (logLevel <= level) {
+            if (typeof console !== 'undefined') {
+                //eslint-disable-line no-console
+                if (typeof console.log !== 'undefined') {
+                    //eslint-disable-line no-console
+                    //return console.log('[' + formatTime(new Date()) + '] ' , str); //eslint-disable-line no-console
+                    args.unshift('[' + formatTime(new Date()) + '] ');
+                    console.log.apply(console, args.map(function (a) {
+                        if (typeof a === "object") {
+                            return a.toString() + JSON.stringify(a, null, 2);
+                        }
+                        return a;
+                    }));
+                }
+            }
+        }
+    };
+
+    this.trace = window.console.debug.bind(window.console, format('TRACE', name), 'color:grey;', 'color: grey;');
+    this.debug = window.console.debug.bind(window.console, format('DEBUG', name), 'color:grey;', 'color: green;');
+    this.info = window.console.debug.bind(window.console, format('INFO', name), 'color:grey;', 'color: blue;');
+    this.warn = window.console.debug.bind(window.console, format('WARN', name), 'color:grey;', 'color: orange;');
+    this.error = window.console.debug.bind(window.console, format('ERROR', name), 'color:grey;', 'color: red;');
+}
+
+exports.Log = Log;
+
+},{}],132:[function(require,module,exports){
+(function (global){
+/**
+ * Web page integration module for the mermaid framework. It uses the mermaidAPI for mermaid functionality and to render
+ * the diagrams to svg code.
+ */
+
+'use strict';
+
+var Logger = require('./logger');
+
+var log = new Logger.Log();
+var mermaidAPI = require('./mermaidAPI');
+var nextId = 0;
+
+var he = require('he');
+
+module.exports.mermaidAPI = mermaidAPI;
+/**
+ * ## init
+ * Function that goes through the document to find the chart definitions in there and render them.
+ *
+ * The function tags the processed attributes with the attribute data-processed and ignores found elements with the
+ * attribute already set. This way the init function can be triggered several times.
+ *
+ * Optionally, `init` can accept in the second argument one of the following:
+ * - a DOM Node
+ * - an array of DOM nodes (as would come from a jQuery selector)
+ * - a W3C selector, a la `.mermaid`
+ *
+ * ```mermaid
+ * graph LR;
+ *  a(Find elements)-->b{Processed}
+ *  b-->|Yes|c(Leave element)
+ *  b-->|No |d(Transform)
+ * ```
+ * Renders the mermaid diagrams
+ * @param nodes a css selector or an array of nodes
+ */
+var _init = function _init() {
+    var conf = mermaidAPI.getConfig();
+    log.debug('Starting rendering diagrams');
+    var nodes;
+    if (arguments.length >= 2) {
+        /*! sequence config was passed as #1 */
+        if (typeof arguments[0] !== 'undefined') {
+            global.mermaid.sequenceConfig = arguments[0];
+        }
+
+        nodes = arguments[1];
+    } else {
+        nodes = arguments[0];
+    }
+
+    // if last argument is a function this is the callback function
+    var callback;
+    if (typeof arguments[arguments.length - 1] === 'function') {
+        callback = arguments[arguments.length - 1];
+        log.debug('Callback function found');
+    } else {
+        if (typeof conf.mermaid !== 'undefined') {
+            if (typeof conf.mermaid.callback === 'function') {
+                callback = conf.mermaid.callback;
+                log.debug('Callback function found');
+            } else {
+                log.debug('No Callback function found');
+            }
+        }
+    }
+    nodes = nodes === undefined ? document.querySelectorAll('.mermaid') : typeof nodes === 'string' ? document.querySelectorAll(nodes) : nodes instanceof Node ? [nodes] : nodes; // Last case  - sequence config was passed pick next
+
+    var i;
+
+    if (typeof mermaid_config !== 'undefined') {
+        mermaidAPI.initialize(global.mermaid_config);
+    }
+    log.debug('Start On Load before: ' + global.mermaid.startOnLoad);
+    if (typeof global.mermaid.startOnLoad !== 'undefined') {
+        log.debug('Start On Load inner: ' + global.mermaid.startOnLoad);
+        mermaidAPI.initialize({ startOnLoad: global.mermaid.startOnLoad });
+    }
+
+    if (typeof global.mermaid.ganttConfig !== 'undefined') {
+        mermaidAPI.initialize({ gantt: global.mermaid.ganttConfig });
+    }
+
+    var txt;
+    var insertSvg = function insertSvg(svgCode, bindFunctions) {
+        element.innerHTML = svgCode;
+        if (typeof callback !== 'undefined') {
+            callback(id);
+        }
+        bindFunctions(element);
+    };
+
+    for (i = 0; i < nodes.length; i++) {
+        var element = nodes[i];
+
+        /*! Check if previously processed */
+        if (!element.getAttribute('data-processed')) {
+            element.setAttribute('data-processed', true);
+        } else {
+            continue;
+        }
+
+        var id = 'mermaidChart' + nextId++;
+
+        // Fetch the graph definition including tags
+        txt = element.innerHTML;
+
+        //console.warn('delivererd from the browser: ');
+        //console.warn(txt);
+
+        // transforms the html to pure text
+        txt = he.decode(txt).trim();
+        //console.warn('he decode: ');
+        //console.warn(txt);
+
+        mermaidAPI.render(id, txt, insertSvg, element);
+    }
+};
+
+exports.init = _init;
+exports.parse = mermaidAPI.parse;
+/**
+ * ## version
+ * Function returning version information
+ * @returns {string} A string containing the version info
+ */
+exports.version = function () {
+    return 'v' + require('../package.json').version;
+};
+
+/**
+ * ## initialize
+ * This function overrides the default configuration.
+ * @param config
+ */
+exports.initialize = function (config) {
+    log.debug('Initializing mermaid');
+    if (typeof config.mermaid !== 'undefined') {
+        if (typeof config.mermaid.startOnLoad !== 'undefined') {
+            global.mermaid.startOnLoad = config.mermaid.startOnLoad;
+        }
+        if (typeof config.mermaid.htmlLabels !== 'undefined') {
+            global.mermaid.htmlLabels = config.mermaid.htmlLabels;
+        }
+    }
+    mermaidAPI.initialize(config);
+};
+
+var equals = function equals(val, variable) {
+    if (typeof variable === 'undefined') {
+        return false;
+    } else {
+        return val === variable;
+    }
+};
+
+/**
+ * Global mermaid object. Contains the functions:
+ * * init
+ * * initialize
+ * * version
+ * * parse
+ * * parseError
+ * * render
+ */
+global.mermaid = {
+    startOnLoad: true,
+    htmlLabels: true,
+
+    init: function init() {
+        _init.apply(null, arguments);
+    },
+    initialize: function initialize(config) {
+        exports.initialize(config);
+    },
+    version: function version() {
+        return mermaidAPI.version();
+    },
+    parse: function parse(text) {
+        return mermaidAPI.parse(text);
+    },
+    parseError: function parseError(err) {
+        log.debug('Mermaid Syntax error:');
+        log.debug(err);
+    },
+    render: function render(id, text, callback, element) {
+        return mermaidAPI.render(id, text, callback, element);
+    }
+};
+
+/**
+ * ## parseError
+ * This function overrides the default configuration.
+ * @param config
+ */
+exports.parseError = global.mermaid.parseError;
+
+/**
+ * ##contentLoaded
+ * Callback function that is called when page is loaded. This functions fetches configuration for mermaid rendering and
+ * calls init for rendering the mermaid diagrams on the page.
+ */
+exports.contentLoaded = function () {
+    var config;
+    // Check state of start config mermaid namespace
+    if (typeof mermaid_config !== 'undefined') {
+        if (equals(false, global.mermaid_config.htmlLabels)) {
+            global.mermaid.htmlLabels = false;
+        }
+    }
+
+    if (global.mermaid.startOnLoad) {
+        // For backwards compatability reasons also check mermaid_config variable
+        if (typeof global.mermaid_config !== 'undefined') {
+            // Check if property startOnLoad is set
+            if (equals(true, global.mermaid_config.startOnLoad)) {
+                global.mermaid.init();
+            }
+        } else {
+            // No config found, do check API config
+            config = mermaidAPI.getConfig();
+            if (config.startOnLoad) {
+                global.mermaid.init();
+            }
+        }
+    } else {
+        //if(typeof global.mermaid === 'undefined' ){
+        if (typeof global.mermaid.startOnLoad === 'undefined') {
+            log.debug('In start, no config');
+            config = mermaidAPI.getConfig();
+            if (config.startOnLoad) {
+                global.mermaid.init();
+            }
+            //}else{
+            //
+            //}
+        }
+    }
+};
+
+if (typeof document !== 'undefined') {
+    /*!
+     * Wait for document loaded before starting the execution
+     */
+    window.addEventListener('load', function () {
+        exports.contentLoaded();
+    }, false);
+}
+
+//    // Your actual module
+//    return module.exports;
+//}));
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"../package.json":108,"./logger":131,"./mermaidAPI":133,"he":103}],133:[function(require,module,exports){
+(function (global){
+/**
+ * ---
+ * title: mermaidAPI
+ * order: 5
+ * ---
+ * # mermaidAPI
+ * This is the api to be used when handling the integration with the web page instead of using the default integration
+ * (mermaid.js).
+ *
+ * The core of this api is the **render** function that given a graph definitionas text renders the graph/diagram and
+ * returns a svg element for the graph. It is is then up to the user of the API to make use of the svg, either insert it
+ * somewhere in the page or something completely different.
+ */
+'use strict';
+
+var Logger = require('./logger');
+var log = new Logger.Log();
+
+var graph = require('./diagrams/flowchart/graphDb');
+var utils = require('./utils');
+var flowRenderer = require('./diagrams/flowchart/flowRenderer');
+var seq = require('./diagrams/sequenceDiagram/sequenceRenderer');
+var info = require('./diagrams/example/exampleRenderer');
+var infoParser = require('./diagrams/example/parser/example');
+var flowParser = require('./diagrams/flowchart/parser/flow');
+var dotParser = require('./diagrams/flowchart/parser/dot');
+var sequenceParser = require('./diagrams/sequenceDiagram/parser/sequenceDiagram');
+var sequenceDb = require('./diagrams/sequenceDiagram/sequenceDb');
+var infoDb = require('./diagrams/example/exampleDb');
+var gantt = require('./diagrams/gantt/ganttRenderer');
+var ganttParser = require('./diagrams/gantt/parser/gantt');
+var ganttDb = require('./diagrams/gantt/ganttDb');
+var classParser = require('./diagrams/classDiagram/parser/classDiagram');
+var classRenderer = require('./diagrams/classDiagram/classRenderer');
+var classDb = require('./diagrams/classDiagram/classDb');
+var gitGraphParser = require('./diagrams/gitGraph/parser/gitGraph');
+var gitGraphRenderer = require('./diagrams/gitGraph/gitGraphRenderer');
+var gitGraphAst = require('./diagrams/gitGraph/gitGraphAst');
+var d3 = require('./d3');
+
+SVGElement.prototype.getTransformToElement = SVGElement.prototype.getTransformToElement || function (toElement) {
+    return toElement.getScreenCTM().inverse().multiply(this.getScreenCTM());
+};
+/**
+ * ## Configuration
+ * These are the default options which can be overridden with the initialization call as in the example below:
+ * ```
+ * mermaid.initialize({
+ *   flowchart:{
+ *      htmlLabels: false
+ *   }
+ * });
+ * ```
+ */
+var config = {
+    /**
+     * logLevel , decides the amount of logging to be used.
+     *    * debug: 1
+     *    * info: 2
+     *    * warn: 3
+     *    * error: 4
+     *    * fatal: 5
+     */
+    logLevel: 5,
+    /**
+     * **cloneCssStyles** - This options controls whether or not the css rules should be copied into the generated svg
+     */
+    cloneCssStyles: true,
+
+    /**
+     * **startOnLoad** - This options controls whether or mermaid starts when the page loads
+     */
+    startOnLoad: true,
+
+    /**
+     * **arrowMarkerAbsolute** - This options controls whether or arrow markers in html code will be absolute paths or
+     * an anchor, #. This matters if you are using base tag settings.
+     */
+    arrowMarkerAbsolute: false,
+
+    /**
+     * ### flowchart
+     * *The object containing configurations specific for flowcharts*
+     */
+    flowchart: {
+        /**
+         * **htmlLabels** - Flag for setting whether or not a html tag should be used for rendering labels
+         * on the edges
+         */
+        htmlLabels: true,
+        /**
+         * **useMaxWidth** - Flag for setting whether or not a all available width should be used for
+         * the diagram.
+         */
+        useMaxWidth: true
+    },
+
+    /**
+     * ###  sequenceDiagram
+     * The object containing configurations specific for sequence diagrams
+     */
+    sequenceDiagram: {
+
+        /**
+         * **diagramMarginX** - margin to the right and left of the sequence diagram
+         */
+        diagramMarginX: 50,
+
+        /**
+         * **diagramMarginY** - margin to the over and under the sequence diagram
+         */
+        diagramMarginY: 10,
+
+        /**
+         * **actorMargin** - Margin between actors
+         */
+        actorMargin: 50,
+
+        /**
+         * **width** - Width of actor boxes
+         */
+        width: 150,
+
+        /**
+         * **height** - Height of actor boxes
+         */
+        height: 65,
+
+        /**
+         * **boxMargin** - Margin around loop boxes
+         */
+        boxMargin: 10,
+
+        /**
+         * **boxTextMargin** - margin around the text in loop/alt/opt boxes
+         */
+        boxTextMargin: 5,
+
+        /**
+        * **noteMargin** - margin around notes
+         */
+        noteMargin: 10,
+
+        /**
+        * **messageMargin** - Space between messages
+         */
+        messageMargin: 35,
+
+        /**
+         * **mirrorActors** - mirror actors under diagram
+         */
+        mirrorActors: true,
+
+        /**
+         * **bottomMarginAdj** - Depending on css styling this might need adjustment.
+         * Prolongs the edge of the diagram downwards
+         */
+        bottomMarginAdj: 1,
+
+        /**
+         * **useMaxWidth** - when this flag is set the height and width is set to 100% and is then scaling with the
+         * available space if not the absolute space required is used
+         */
+        useMaxWidth: true
+    },
+
+    /** ### gantt
+     * The object containing configurations specific for gantt diagrams*
+     */
+    gantt: {
+        /**
+         * **titleTopMargin** - margin top for the text over the gantt diagram
+         */
+        titleTopMargin: 25,
+
+        /**
+         * **barHeight** - the height of the bars in the graph
+         */
+        barHeight: 20,
+
+        /**
+         * **barGap** - the margin between the different activities in the gantt diagram
+         */
+        barGap: 4,
+
+        /**
+         *  **topPadding** - margin between title and gantt diagram and between axis and gantt diagram.
+         */
+        topPadding: 50,
+
+        /**
+         *  **leftPadding** - the space allocated for the section name to the left of the activities.
+         */
+        leftPadding: 75,
+
+        /**
+         *  **gridLineStartPadding** - Vertical starting position of the grid lines
+         */
+        gridLineStartPadding: 35,
+
+        /**
+         *  **fontSize** - font size ...
+         */
+        fontSize: 11,
+
+        /**
+         * **fontFamily** - font family ...
+         */
+        fontFamily: '"Open-Sans", "sans-serif"',
+
+        /**
+         * **numberSectionStyles** - the number of alternating section styles
+         */
+        numberSectionStyles: 3,
+
+        /**
+         * **axisFormatter** - formatting of the axis, this might need adjustment to match your locale and preferences
+         */
+        axisFormatter: [
+
+        // Within a day
+        ['%I:%M', function (d) {
+            return d.getHours();
+        }],
+        // Monday a week
+        ['w. %U', function (d) {
+            return d.getDay() == 1;
+        }],
+        // Day within a week (not monday)
+        ['%a %d', function (d) {
+            return d.getDay() && d.getDate() != 1;
+        }],
+        // within a month
+        ['%b %d', function (d) {
+            return d.getDate() != 1;
+        }],
+        // Month
+        ['%m-%y', function (d) {
+            return d.getMonth();
+        }]]
+    },
+    classDiagram: {},
+    gitGraph: {},
+    info: {}
+};
+
+Logger.setLogLevel(config.logLevel);
+
+/**
+ * ## parse
+ * Function that parses a mermaid diagram definition. If parsing fails the parseError callback is called and an error is
+ * thrown and
+ * @param text
+ */
+var parse = function parse(text) {
+    var graphType = utils.detectType(text);
+    var parser;
+
+    switch (graphType) {
+        case 'gitGraph':
+            parser = gitGraphParser;
+            parser.parser.yy = gitGraphAst;
+            break;
+        case 'graph':
+            parser = flowParser;
+            parser.parser.yy = graph;
+            break;
+        case 'dotGraph':
+            parser = dotParser;
+            parser.parser.yy = graph;
+            break;
+        case 'sequenceDiagram':
+            parser = sequenceParser;
+            parser.parser.yy = sequenceDb;
+            break;
+        case 'info':
+            parser = infoParser;
+            parser.parser.yy = infoDb;
+            break;
+        case 'gantt':
+            parser = ganttParser;
+            parser.parser.yy = ganttDb;
+            break;
+        case 'classDiagram':
+            parser = classParser;
+            parser.parser.yy = classDb;
+            break;
+    }
+
+    try {
+        parser.parse(text);
+        return true;
+    } catch (err) {
+        return false;
+    }
+};
+exports.parse = parse;
+
+/**
+ * ## version
+ * Function returning version information
+ * @returns {string} A string containing the version info
+ */
+exports.version = function () {
+    return require('../package.json').version;
+};
+
+exports.encodeEntities = function (text) {
+    var txt = text;
+
+    txt = txt.replace(/style.*:\S*#.*;/g, function (s) {
+        var innerTxt = s.substring(0, s.length - 1);
+        return innerTxt;
+    });
+    txt = txt.replace(/classDef.*:\S*#.*;/g, function (s) {
+        var innerTxt = s.substring(0, s.length - 1);
+        return innerTxt;
+    });
+
+    txt = txt.replace(/#\w+\;/g, function (s) {
+        var innerTxt = s.substring(1, s.length - 1);
+
+        var isInt = /^\+?\d+$/.test(innerTxt);
+        if (isInt) {
+            return 'ﬂ°°' + innerTxt + '¶ß';
+        } else {
+            return 'ﬂ°' + innerTxt + '¶ß';
+        }
+    });
+
+    return txt;
+};
+
+exports.decodeEntities = function (text) {
+    var txt = text;
+
+    txt = txt.replace(/\ﬂ\°\°/g, function () {
+        return '&#';
+    });
+    txt = txt.replace(/\ﬂ\°/g, function () {
+        return '&';
+    });
+    txt = txt.replace(/¶ß/g, function () {
+        return ';';
+    });
+
+    return txt;
+};
+/**
+ * ##render
+ * Function that renders an svg with a graph from a chart definition. Usage example below.
+ *
+ * ```
+ * mermaidAPI.initialize({
+ *      startOnLoad:true
+ *  });
+ *  $(function(){
+ *      var graphDefinition = 'graph TB\na-->b';
+ *      var cb = function(svgGraph){
+ *          console.log(svgGraph);
+ *      };
+ *      mermaidAPI.render('id1',graphDefinition,cb);
+ *  });
+ *```
+ * @param id the id of the element to be rendered
+ * @param txt the graph definition
+ * @param cb callback which is called after rendering is finished with the svg code as inparam.
+ * @param container selector to element in which a div with the graph temporarily will be inserted. In one is
+ * provided a hidden div will be inserted in the body of the page instead. The element will be removed when rendering is
+ * completed.
+ */
+var render = function render(id, txt, cb, container) {
+
+    if (typeof container !== 'undefined') {
+        container.innerHTML = '';
+
+        d3.select(container).append('div').attr('id', 'd' + id).append('svg').attr('id', id).attr('width', '100%').attr('xmlns', 'http://www.w3.org/2000/svg').append('g');
+    } else {
+        var element = document.querySelector('#' + 'd' + id);
+        if (element) {
+            element.innerHTML = '';
+        }
+
+        d3.select('body').append('div').attr('id', 'd' + id).append('svg').attr('id', id).attr('width', '100%').attr('xmlns', 'http://www.w3.org/2000/svg').append('g');
+    }
+
+    window.txt = txt;
+    txt = exports.encodeEntities(txt);
+    //console.warn('mermaid encode: ');
+    //console.warn(txt);
+
+    var element = d3.select('#d' + id).node();
+    var graphType = utils.detectType(txt);
+    var classes = {};
+    switch (graphType) {
+        case 'gitGraph':
+            config.flowchart.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            gitGraphRenderer.setConf(config.gitGraph);
+            gitGraphRenderer.draw(txt, id, false);
+            //if(config.cloneCssStyles){
+            //classes = gitGraphRenderer.getClasses(txt, false);
+            //utils.cloneCssStyles(element.firstChild, classes);
+            //}
+            break;
+        case 'graph':
+            config.flowchart.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            flowRenderer.setConf(config.flowchart);
+            flowRenderer.draw(txt, id, false);
+            if (config.cloneCssStyles) {
+                classes = flowRenderer.getClasses(txt, false);
+                utils.cloneCssStyles(element.firstChild, classes);
+            }
+            break;
+        case 'dotGraph':
+            config.flowchart.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            flowRenderer.setConf(config.flowchart);
+            flowRenderer.draw(txt, id, true);
+            if (config.cloneCssStyles) {
+                classes = flowRenderer.getClasses(txt, true);
+                utils.cloneCssStyles(element.firstChild, classes);
+            }
+            break;
+        case 'sequenceDiagram':
+            config.sequenceDiagram.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            seq.setConf(config.sequenceDiagram);
+            seq.draw(txt, id);
+            if (config.cloneCssStyles) {
+                utils.cloneCssStyles(element.firstChild, []);
+            }
+            break;
+        case 'gantt':
+            config.gantt.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            gantt.setConf(config.gantt);
+            gantt.draw(txt, id);
+            if (config.cloneCssStyles) {
+                utils.cloneCssStyles(element.firstChild, []);
+            }
+            break;
+        case 'classDiagram':
+            config.classDiagram.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            classRenderer.setConf(config.classDiagram);
+            classRenderer.draw(txt, id);
+            if (config.cloneCssStyles) {
+                utils.cloneCssStyles(element.firstChild, []);
+            }
+            break;
+        case 'info':
+            config.info.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
+            info.draw(txt, id, exports.version());
+            if (config.cloneCssStyles) {
+                utils.cloneCssStyles(element.firstChild, []);
+            }
+            break;
+    }
+
+    d3.select('#d' + id).selectAll('foreignobject div').attr('xmlns', 'http://www.w3.org/1999/xhtml');
+
+    var url = '';
+    if (config.arrowMarkerAbsolute) {
+        url = window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search;
+        url = url.replace(/\(/g, '\\(');
+        url = url.replace(/\)/g, '\\)');
+    }
+
+    // Fix for when the base tag is used
+    var svgCode = d3.select('#d' + id).node().innerHTML.replace(/url\(#arrowhead/g, 'url(' + url + '#arrowhead', 'g');
+
+    svgCode = exports.decodeEntities(svgCode);
+
+    //console.warn('mermaid decode: ');
+    //console.warn(svgCode);
+    //var he = require('he');
+    //svgCode = he.decode(svgCode);
+    if (typeof cb !== 'undefined') {
+        cb(svgCode, graph.bindFunctions);
+    } else {
+        log.warn('CB = undefined!');
+    }
+
+    var node = d3.select('#d' + id).node();
+    if (node !== null && typeof node.remove === 'function') {
+        d3.select('#d' + id).node().remove();
+    }
+
+    return svgCode;
+};
+
+exports.render = function (id, text, cb, containerElement) {
+    try {
+        if (arguments.length === 1) {
+            text = id;
+            id = 'mermaidId0';
+        }
+
+        if (typeof document === 'undefined') {
+            // Todo handle rendering serverside using phantomjs
+        } else {
+                // In browser
+                return render(id, text, cb, containerElement);
+            }
+    } catch (e) {
+        log.warn(e);
+    }
+};
+
+var setConf = function setConf(cnf) {
+    // Top level initially mermaid, gflow, sequenceDiagram and gantt
+    var lvl1Keys = Object.keys(cnf);
+    var i;
+    for (i = 0; i < lvl1Keys.length; i++) {
+
+        if (typeof cnf[lvl1Keys[i]] === 'object') {
+            var lvl2Keys = Object.keys(cnf[lvl1Keys[i]]);
+
+            var j;
+            for (j = 0; j < lvl2Keys.length; j++) {
+                log.debug('Setting conf ', lvl1Keys[i], '-', lvl2Keys[j]);
+                if (typeof config[lvl1Keys[i]] === 'undefined') {
+
+                    config[lvl1Keys[i]] = {};
+                }
+                log.debug('Setting config: ' + lvl1Keys[i] + ' ' + lvl2Keys[j] + ' to ' + cnf[lvl1Keys[i]][lvl2Keys[j]]);
+                config[lvl1Keys[i]][lvl2Keys[j]] = cnf[lvl1Keys[i]][lvl2Keys[j]];
+            }
+        } else {
+            config[lvl1Keys[i]] = cnf[lvl1Keys[i]];
+        }
+    }
+};
+
+exports.initialize = function (options) {
+    log.debug('Initializing mermaidAPI');
+    // Update default config with options supplied at initialization
+    if (typeof options === 'object') {
+        setConf(options);
+    }
+    Logger.setLogLevel(config.logLevel);
+};
+exports.getConfig = function () {
+    return config;
+};
+
+exports.parseError = function (err, hash) {
+    if (typeof mermaid !== 'undefined') {
+        global.mermaid.parseError(err, hash);
+    } else {
+        log.debug('Mermaid Syntax error:');
+        log.debug(err);
+    }
+};
+global.mermaidAPI = {
+    render: exports.render,
+    parse: exports.parse,
+    initialize: exports.initialize,
+    detectType: utils.detectType,
+    parseError: exports.parseError,
+    getConfig: exports.getConfig
+};
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"../package.json":108,"./d3":109,"./diagrams/classDiagram/classDb":110,"./diagrams/classDiagram/classRenderer":111,"./diagrams/classDiagram/parser/classDiagram":112,"./diagrams/example/exampleDb":113,"./diagrams/example/exampleRenderer":114,"./diagrams/example/parser/example":115,"./diagrams/flowchart/flowRenderer":117,"./diagrams/flowchart/graphDb":118,"./diagrams/flowchart/parser/dot":119,"./diagrams/flowchart/parser/flow":120,"./diagrams/gantt/ganttDb":121,"./diagrams/gantt/ganttRenderer":122,"./diagrams/gantt/parser/gantt":123,"./diagrams/gitGraph/gitGraphAst":124,"./diagrams/gitGraph/gitGraphRenderer":125,"./diagrams/gitGraph/parser/gitGraph":126,"./diagrams/sequenceDiagram/parser/sequenceDiagram":127,"./diagrams/sequenceDiagram/sequenceDb":128,"./diagrams/sequenceDiagram/sequenceRenderer":129,"./logger":131,"./utils":134}],134:[function(require,module,exports){
+/**
+ * Created by knut on 14-11-23.
+ */
+'use strict';
+
+var Logger = require('./logger');
+var log = new Logger.Log();
+
+/**
+ * @function detectType
+ * Detects the type of the graph text.
+ * ```mermaid
+ * graph LR
+ *  a-->b
+ *  b-->c
+ *  c-->d
+ *  d-->e
+ *  e-->f
+ *  f-->g
+ *  g-->h
+ * ```
+ *
+ * @param {string} text The text defining the graph
+ * @returns {string} A graph definition key
+ */
+var detectType = function detectType(text) {
+    text = text.replace(/^\s*%%.*\n/g, '\n');
+    if (text.match(/^\s*sequenceDiagram/)) {
+        return 'sequenceDiagram';
+    }
+
+    if (text.match(/^\s*digraph/)) {
+        //log.debug('Detected dot syntax');
+        return 'dotGraph';
+    }
+
+    if (text.match(/^\s*info/)) {
+        //log.debug('Detected info syntax');
+        return 'info';
+    }
+
+    if (text.match(/^\s*gantt/)) {
+        //log.debug('Detected info syntax');
+        return 'gantt';
+    }
+
+    if (text.match(/^\s*classDiagram/)) {
+        log.debug('Detected classDiagram syntax');
+        return 'classDiagram';
+    }
+
+    if (text.match(/^\s*gitGraph/)) {
+        log.debug('Detected gitGraph syntax');
+        return 'gitGraph';
+    }
+    return 'graph';
+};
+exports.detectType = detectType;
+
+/**
+ * Copies all relevant CSS content into the graph SVG.
+ * This allows the SVG to be copied as is while keeping class based styling
+ * @param {element} svg The root element of the SVG
+ * @param {object} Hash table of class definitions from the graph definition
+ */
+var cloneCssStyles = function cloneCssStyles(svg, classes) {
+    var usedStyles = '';
+    var sheets = document.styleSheets;
+    var rule;
+    for (var i = 0; i < sheets.length; i++) {
+        // Avoid multiple inclusion on pages with multiple graphs
+        if (sheets[i].title !== 'mermaid-svg-internal-css') {
+            try {
+
+                var rules = sheets[i].cssRules;
+                if (rules !== null) {
+                    for (var j = 0; j < rules.length; j++) {
+                        rule = rules[j];
+                        if (typeof rule.style !== 'undefined') {
+                            var elems;
+                            elems = svg.querySelectorAll(rule.selectorText);
+                            if (elems.length > 0) {
+                                usedStyles += rule.selectorText + ' { ' + rule.style.cssText + '}\n';
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                if (typeof rule !== 'undefined') {
+                    log.warn('Invalid CSS selector "' + rule.selectorText + '"', err);
+                }
+            }
+        }
+    }
+
+    var defaultStyles = '';
+    var embeddedStyles = '';
+
+    for (var className in classes) {
+        if (classes.hasOwnProperty(className) && typeof className != 'undefined') {
+            if (className === 'default') {
+                if (classes['default'].styles instanceof Array) {
+                    defaultStyles += '#' + svg.id.trim() + ' .node' + '>rect { ' + classes[className].styles.join('; ') + '; }\n';
+                }
+                if (classes['default'].nodeLabelStyles instanceof Array) {
+                    defaultStyles += '#' + svg.id.trim() + ' .node text ' + ' { ' + classes[className].nodeLabelStyles.join('; ') + '; }\n';
+                }
+                if (classes['default'].edgeLabelStyles instanceof Array) {
+                    defaultStyles += '#' + svg.id.trim() + ' .edgeLabel text ' + ' { ' + classes[className].edgeLabelStyles.join('; ') + '; }\n';
+                }
+                if (classes['default'].clusterStyles instanceof Array) {
+                    defaultStyles += '#' + svg.id.trim() + ' .cluster rect ' + ' { ' + classes[className].clusterStyles.join('; ') + '; }\n';
+                }
+            } else {
+                if (classes[className].styles instanceof Array) {
+                    embeddedStyles += '#' + svg.id.trim() + ' .' + className + '>rect, .' + className + '>polygon, .' + className + '>circle, .' + className + '>ellipse { ' + classes[className].styles.join('; ') + '; }\n';
+                }
+            }
+        }
+    }
+
+    if (usedStyles !== '' || defaultStyles !== '' || embeddedStyles !== '') {
+        var s = document.createElement('style');
+        s.setAttribute('type', 'text/css');
+        s.setAttribute('title', 'mermaid-svg-internal-css');
+        s.innerHTML = '/* <![CDATA[ */\n';
+        // Make this CSS local to this SVG
+        if (defaultStyles !== '') {
+            s.innerHTML += defaultStyles;
+        }
+        if (usedStyles !== '') {
+            s.innerHTML += usedStyles;
+        }
+        if (embeddedStyles !== '') {
+            s.innerHTML += embeddedStyles;
+        }
+        s.innerHTML += '/* ]]> */\n';
+        svg.insertBefore(s, svg.firstChild);
+    }
+};
+
+exports.cloneCssStyles = cloneCssStyles;
+
+/**
+ * @function isSubstringInArray
+ * Detects whether a substring in present in a given array
+ * @param {string} str The substring to detect
+ * @param {array} arr The array to search
+ * @returns {number} the array index containing the substring or -1 if not present
+ **/
+var isSubstringInArray = function isSubstringInArray(str, arr) {
+    for (var i = 0; i < arr.length; i++) {
+        if (arr[i].match(str)) return i;
+    }
+    return -1;
+};
+
+exports.isSubstringInArray = isSubstringInArray;
+
+},{"./logger":131}]},{},[132])(132)
+});
